@@ -15,7 +15,7 @@ class CWItem:
         self.error("__init__ called")
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject):
+    def handle_object(cls, _: CWObject):
         cls.error("handle_object not implemented")
 
     @classmethod
@@ -127,7 +127,7 @@ class CWColor(CWItem):
         return cwcolor
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+    def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
             CWLocal.handle_object(cwobject)
             return
@@ -360,7 +360,7 @@ class CWTradition(CWItem):
         return self.name
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+    def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
             CWLocal.handle_object(cwobject)
             return
@@ -421,7 +421,7 @@ class CWCulture(CWItem):
         return self.name
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+    def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
             CWLocal.handle_object(cwobject)
             return
@@ -451,12 +451,147 @@ class CWCulture(CWItem):
         cwitem.ethnicities = cwobject.get("ethnicities", default_value=[])
 
 
+class CWReligionFamily(CWItem):
+    PATH = CWItem.PATH.joinpath("common/religion/religion_families")
+    ALL: dict[str, "CWReligionFamily"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.is_pagan: Token = None
+
+    def __repr__(self):
+        return self.name
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject):
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Identifier: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+
+        if cwitem.name in cls.ALL:
+            cls.error(f"Duplicate Title: {cwitem.name}")
+        cls.ALL[cwitem.name] = cwitem
+        cwitem.is_pagan = cwobject.get("is_pagan", default_value=Token("no"))
+
+
+class CWFaith(CWItem):
+    ALL: dict[str, "CWFaith"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.religion: CWReligion = None
+        self.color: CWColor = None
+        self.religious_head: CWTitle = None
+        self.holy_site: list[CWObject] = []
+        self.doctrine: list[Token] = []
+
+    def __repr__(self):
+        return self.name
+
+    @classmethod
+    def load(cls):
+        raise Exception(f"<{cls.__name__}> load called")
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject, parent: "CWReligion") -> "CWFaith":
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Identifier: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+
+        if cwitem.name in cls.ALL:
+            cls.error(f"Duplicate Title: {cwitem.name}")
+        cls.ALL[cwitem.name] = cwitem
+
+        cwitem.religion = parent
+        cwitem.color = CWColor.get_color(cwobject)
+
+        cwitem.religious_head = cwobject.get("religious_head")
+        if cwitem.religious_head is not None:
+            cwitem.religious_head = CWTitle.ALL[cwitem.religious_head.token]
+
+        cwitem.holy_site = cwobject.get(
+            "holy_site", allow_multiple=True, default_value=[]
+        )
+        cwitem.holy_site = [site.values for site in cwitem.holy_site]
+
+        cwitem.doctrine = cwobject.get(
+            "doctrine", allow_multiple=True, default_value=[]
+        )
+        cwitem.doctrine = [doctrine.values for doctrine in cwitem.doctrine]
+
+        return cwitem
+
+
+class CWReligion(CWItem):
+    PATH = CWItem.PATH.joinpath("common/religion/religions")
+    ALL: dict[str, "CWReligion"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.family: CWReligionFamily = None
+        self.pagan_roots: Token = None
+        self.doctrine: list[Token] = []
+        self.traits: CWObject = None
+        self.faiths: list = []
+
+    def __repr__(self):
+        return self.name
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Identifier: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+
+        if cwitem.name in cls.ALL:
+            cls.error(f"Duplicate Title: {cwitem.name}")
+        cls.ALL[cwitem.name] = cwitem
+
+        cwitem.family = cwobject.get("family")
+        if cwitem.family is None:
+            cls.error(f"{cwitem.name} has family")
+
+        cwitem.pagan_roots = cwobject.get("pagan_roots", default_value=Token("no"))
+        cwitem.doctrine = cwobject.get(
+            "doctrine", allow_multiple=True, default_value=[]
+        )
+        cwitem.traits = cwobject.get("traits")
+
+        # Faiths
+        faiths = cwobject.get("faiths")
+        for value in faiths:
+            cwitem.faiths.append(CWFaith.handle_object(value, cwitem))
+
+
 def load_items():
     pass
 
 
 CWColor.load_files()
+CWTitle.load_files()
 CWTradition.load_files()
 CWCulture.load_files()
-CWTitle.load_files()
+CWReligionFamily.load_files()
+CWReligion.load_files()
 pass
