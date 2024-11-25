@@ -11,8 +11,13 @@ class CWItem:
     ALL: dict[str, "CWItem"] = {}
 
     def __init__(self):
+        self.raw = None
+        self.name = None
         # Default Values Here
         self.error("__init__ called")
+
+    def __repr__(self):
+        return self.name
 
     @classmethod
     def handle_object(cls, _: CWObject):
@@ -31,7 +36,7 @@ class CWItem:
             # files = [pathlib.Path("00_landed_titles.txt")]
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
-            tokens = tokenize(file.read_text(encoding="utf-8-sig"), file)
+            tokens = tokenize(read_file(file), file)
             cwobjects = parse_group(tokens)
             for cwobject in cwobjects:
                 cls.handle_object(cwobject)
@@ -219,9 +224,6 @@ class CWTitle(CWItem):
         self.can_destroy: CWObject = None
         self.cultural_names: list[Token] = []
 
-    def __repr__(self):
-        return self.name
-
     @staticmethod
     def rank_from_name(name: str):
         if name[:2] not in CWTitle.RANKS:
@@ -356,9 +358,6 @@ class CWTradition(CWItem):
         self.cost: CWObject = None
         self.ai_will_do: CWObject = None
 
-    def __repr__(self):
-        return self.name
-
     @classmethod
     def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
@@ -416,9 +415,6 @@ class CWCulture(CWItem):
         self.name_list: Token = None
         self.dlc_tradition: list[CWObject] = []
         self.ethnicities: list[CWObject] = []
-
-    def __repr__(self):
-        return self.name
 
     @classmethod
     def handle_object(cls, cwobject: CWObject):
@@ -493,9 +489,6 @@ class CWFaith(CWItem):
         self.holy_site: list[CWObject] = []
         self.doctrine: list[Token] = []
 
-    def __repr__(self):
-        return self.name
-
     @classmethod
     def load(cls):
         raise Exception(f"<{cls.__name__}> load called")
@@ -549,9 +542,6 @@ class CWReligion(CWItem):
         self.traits: CWObject = None
         self.faiths: list = []
 
-    def __repr__(self):
-        return self.name
-
     @classmethod
     def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
         if cwobject.token.type == Token.LOCAL:
@@ -584,6 +574,132 @@ class CWReligion(CWItem):
             cwitem.faiths.append(CWFaith.handle_object(value, cwitem))
 
 
+class CWHistoryDate:
+
+    def __init__(self):
+        # On conflicting dates, latter defined takes priority
+        self.date: Token = None
+        # Generic
+        self.effect: CWObject | Token = None
+        # Province
+        self.culture: CWCulture = None
+        self.religion: CWReligion = None
+        self.terrain: Token = None
+        self.holding: Token = None
+        self.buildings: list[Token] = []
+        self.duchy_capital_building: Token = None
+        self.special_building: Token = None
+        self.special_building_slot: Token = None
+
+    def __repr__(self):
+        return self.date
+
+    @classmethod
+    def handle_object(
+        cls, cwobject: CWObject, override_date: Token = None
+    ) -> "CWHistoryDate":
+        cwitem = cls()
+        if override_date is not None:
+            if override_date.type != Token.DATE:
+                raise Exception(f"override not a date {override_date}")
+            cwitem.date = override_date.token
+        else:
+            if cwobject.token.type != Token.DATE:
+                raise Exception(f"cwobject not a date {repr(cwobject)}")
+            cwitem.date = cwobject.name
+
+        # Generic
+        cwitem.effect = cwobject.get("effect", allow_multiple=True)
+
+        # Province
+        cwitem.culture = cwobject.get("culture", allow_multiple=True)
+        if type(cwitem.culture) is list:
+            cwitem.culture = CWCulture.ALL[cwitem.culture[-1].values.token]
+
+        cwitem.religion = cwobject.get("religion", allow_multiple=True)
+        if type(cwitem.religion) is list:
+            cwitem.religion = CWFaith.ALL[cwitem.religion[-1].values.token]
+
+        cwitem.terrain = cwobject.get("terrain", allow_multiple=True)
+        if type(cwitem.terrain) is list:
+            cwitem.terrain = cwitem.terrain[-1].values.token
+
+        cwitem.holding = cwobject.get("holding", allow_multiple=True)
+        if type(cwitem.holding) is list:
+            cwitem.holding = cwitem.holding[-1].values.token
+
+        cwitem.buildings = cwobject.get("buildings", allow_multiple=True)
+        if type(cwitem.buildings) is list:
+            cwitem.buildings = cwitem.buildings[-1].values.token
+
+        cwitem.duchy_capital_building = cwobject.get(
+            "duchy_capital_building", allow_multiple=True
+        )
+        if type(cwitem.duchy_capital_building) is list:
+            cwitem.duchy_capital_building = cwitem.duchy_capital_building[
+                -1
+            ].values.token
+
+        cwitem.special_building = cwobject.get("special_building", allow_multiple=True)
+        if type(cwitem.special_building) is list:
+            cwitem.special_building = cwitem.special_building[-1].values.token
+
+        cwitem.special_building_slot = cwobject.get(
+            "special_building_slot", allow_multiple=True
+        )
+        if type(cwitem.special_building_slot) is list:
+            cwitem.special_building_slot = cwitem.special_building_slot[-1].values.token
+
+        return cwitem
+
+
+class CWHistoryProvince(CWItem):
+    PATH = CWItem.PATH.joinpath("history/provinces")
+    ALL: dict[str, "CWHistoryProvince"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.barony: CWTitle = None
+        self.dates: list[CWHistoryDate] = []
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.NUMBER:
+            cls.error(f"Token not Number: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = str(cwobject.token.token)
+
+        if cwitem.name in cls.ALL:
+            # duplicates can exist ( province 4345 )
+            # first one defined wins
+            return
+        cls.ALL[cwitem.name] = cwitem
+
+        # self.barony: CWTitle = None
+
+        cwitem.dates.append(CWHistoryDate.handle_object(cwobject, Token("1.1.1")))
+
+        for value in cwobject.values:
+            if value.token.type not in (Token.NUMBER, Token.DATE):
+                continue
+            elif value.token.type == Token.NUMBER:
+                value.token.transform_into_date()
+            cwitem.dates.append(CWHistoryDate.handle_object(value))
+
+
+# PROVINCE MAPPING
+# ON DUPLICATE USE BOTH MAPPINGS
+# ONLY CULTURE, FAITH AND TERRAIN GET COPIED
+# DATES GET COPIED TOO BUT ONLY FOR FIELDS ABOVE
+# ON CONFLICT USE PROVINCE THAT WAS LAST DEFINED
+
+
 def load_items():
     pass
 
@@ -594,4 +710,5 @@ CWTradition.load_files()
 CWCulture.load_files()
 CWReligionFamily.load_files()
 CWReligion.load_files()
+CWHistoryProvince.load_files()
 pass

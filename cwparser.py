@@ -80,13 +80,25 @@ class Token:
         # A.B   - A.B.1 | A.B.   - A.1.1 (possible float)
         # A.B.C - A.B.C | A.B.C. - A.B.C (guaranteed date)
         # Normalize date
-        values = self.token.split(".")
+        values = str(self.token).split(".")
         # Missing date values default to one
         values += [1] * (3 - len(values))
         values[0] = int(values[0]) if values[0] else 1
         values[1] = int(values[1]) if values[1] else 1
         values[2] = int(values[2]) if values[2] else 1
         self.token = ".".join([str(value) for value in values[:3]])
+
+
+def read_file(filename: pathlib.Path) -> str:
+    # CK3 files are split between UTF-8 with BOM (UTF-8-SIG)
+    # and Windows CP-1252 (Windows-1252) for some godforsaken reason
+    # Try one, if it fails use the other
+    try:
+        with filename.open("r", encoding="utf-8-sig") as f:
+            return f.read()
+    except UnicodeDecodeError:
+        with filename.open("r", encoding="windows-1252") as f:
+            return f.read()
 
 
 # Clausewitz Tokenizer
@@ -175,7 +187,7 @@ class CWObject:
         self.index = CWObject.INDEX
         self.name = token.token if token else f"OBJ{self.index}"
         self.operator = operator
-        self.values: Token | list[Token] = []
+        self.values: Token | list[Token | CWObject] = []
         CWObject.INDEX += 1
         CWObject.ALL.append(self)
 
