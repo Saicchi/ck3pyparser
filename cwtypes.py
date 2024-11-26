@@ -1,4 +1,5 @@
 import pathlib
+import copy
 from cwparser import *
 
 BASEPATH = pathlib.Path(
@@ -33,7 +34,6 @@ class CWItem:
             files = [cls.PATH]
         else:
             files = cls.PATH.glob("*.txt")
-            # files = [pathlib.Path("00_landed_titles.txt")]
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
             tokens = tokenize(read_file(file), file)
@@ -182,6 +182,7 @@ class CWColor(CWItem):
 class CWTitle(CWItem):
     PATH = CWItem.PATH.joinpath("common/landed_titles")
     ALL: dict[str, "CWTitle"] = {}
+    PROVINCES: dict[int, "CWTitle"] = {}
 
     # Ranks
     BARONY = "BARONY"
@@ -309,6 +310,9 @@ class CWTitle(CWItem):
             if cwitem.rank != CWTitle.BARONY:
                 cls.error(f"{cwitem.rank} has defined province")
             cwitem.province = province[-1].values
+            if cwitem.province.token in cls.PROVINCES:
+                cls.error(f"Duplicate Province: {cwitem.province}")
+            cls.PROVINCES[cwitem.province.token] = cwitem
 
         cwitem.capital = cwobject.get("capital")  # Handled Later
         cwitem.de_jure_drift_disabled = cwobject.get(
@@ -579,6 +583,8 @@ class CWHistoryDate:
     def __init__(self):
         # On conflicting dates, latter defined takes priority
         self.date: Token = None
+        self.index: int = None  # for priority
+        self.from_map: bool = False  # data copied has higher priority
         # Generic
         self.effect: CWObject | Token = None
         # Province
@@ -630,7 +636,7 @@ class CWHistoryDate:
 
         cwitem.buildings = cwobject.get("buildings", allow_multiple=True)
         if type(cwitem.buildings) is list:
-            cwitem.buildings = cwitem.buildings[-1].values.token
+            cwitem.buildings = cwitem.buildings[-1].values[0]
 
         cwitem.duchy_capital_building = cwobject.get(
             "duchy_capital_building", allow_multiple=True
@@ -655,13 +661,50 @@ class CWHistoryDate:
 
 class CWHistoryProvince(CWItem):
     PATH = CWItem.PATH.joinpath("history/provinces")
-    ALL: dict[str, "CWHistoryProvince"] = {}
+    ALL: dict[int, "CWHistoryProvince"] = {}
+    INDEX = 0
 
     def __init__(self):
+        # First load provinces (low index = lower priority)
+        # then load the mapped provinces (higher index = higher priority)
+        # for conflict resolution
         self.raw: CWObject = None
-        self.name: str = None
+        self.index = CWHistoryProvince.INDEX  # matches define order, not number
+        self.name: int = None
         self.barony: CWTitle = None
         self.dates: list[CWHistoryDate] = []
+        CWHistoryProvince.INDEX += 1
+
+    def __repr__(self):
+        return str(self.name)
+
+    @classmethod
+    def after_load(cls):
+        PATH = CWItem.PATH.joinpath("history/province_mapping")
+        files = PATH.glob("*.txt")
+        for file in files:
+            print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
+            tokens = tokenize(read_file(file), file)
+            cwobjects = parse_group(tokens)
+        for cwobject in cwobjects:
+            if cwobject.token.type != Token.NUMBER:
+                cls.error("invalid mapping token type")
+            if cwobject.values.type != Token.NUMBER:
+                cls.error("invalid mapping token value")
+
+            cwitem = cls()
+            cwitem.raw = cwobject
+            cwitem.name = cwobject.token.token
+            if cwitem.name not in cls.ALL:
+                # duplicates can exist ( province 4345 )
+                # add to existing one
+                cls.ALL[cwitem.name] = cwitem
+
+            cwitem.barony = CWTitle.PROVINCES[cwobject.token.token]
+            for date in cls.ALL[cwobject.values.token].dates:
+                newdate = copy.copy(date)
+                newdate.from_map = True
+                cwitem.dates.append(newdate)
 
     @classmethod
     def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
@@ -673,7 +716,7 @@ class CWHistoryProvince(CWItem):
 
         cwitem = cls()
         cwitem.raw = cwobject
-        cwitem.name = str(cwobject.token.token)
+        cwitem.name = cwobject.token.token
 
         if cwitem.name in cls.ALL:
             # duplicates can exist ( province 4345 )
@@ -681,23 +724,20 @@ class CWHistoryProvince(CWItem):
             return
         cls.ALL[cwitem.name] = cwitem
 
-        # self.barony: CWTitle = None
+        cwitem.barony = CWTitle.PROVINCES[cwobject.token.token]
 
-        cwitem.dates.append(CWHistoryDate.handle_object(cwobject, Token("1.1.1")))
+        newdate = CWHistoryDate.handle_object(cwobject, Token("1.1.1"))
+        newdate.index = cwitem.index
+        cwitem.dates.append(newdate)
 
         for value in cwobject.values:
             if value.token.type not in (Token.NUMBER, Token.DATE):
                 continue
             elif value.token.type == Token.NUMBER:
                 value.token.transform_into_date()
-            cwitem.dates.append(CWHistoryDate.handle_object(value))
-
-
-# PROVINCE MAPPING
-# ON DUPLICATE USE BOTH MAPPINGS
-# ONLY CULTURE, FAITH AND TERRAIN GET COPIED
-# DATES GET COPIED TOO BUT ONLY FOR FIELDS ABOVE
-# ON CONFLICT USE PROVINCE THAT WAS LAST DEFINED
+            newdate = CWHistoryDate.handle_object(value)
+            newdate.index = cwitem.index
+            cwitem.dates.append(newdate)
 
 
 def load_items():
