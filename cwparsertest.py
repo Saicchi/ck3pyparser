@@ -48,6 +48,7 @@ TESTS = {
     "A=": QueueNotEmpty,
     "A=B": "A = B",
     "color = hsv {268 123 789}": "color = hsv\n{ { 268 123 789 } }",
+    "color {267 165 123}": "color = { { 267 165 123 } }"
 }
 
 for text, expected in TESTS.items():

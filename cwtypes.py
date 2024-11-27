@@ -547,7 +547,7 @@ class CWReligion(CWItem):
         self.faiths: list = []
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+    def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
             CWLocal.handle_object(cwobject)
             return
@@ -596,6 +596,19 @@ class CWHistoryDate:
         self.duchy_capital_building: Token = None
         self.special_building: Token = None
         self.special_building_slot: Token = None
+        # Title
+        self.holder: Token = None
+        self.de_jure_liege: CWTitle = None
+        self.government: Token = None
+        self.effect: CWObject = None
+        self.name: Token = None
+        self.liege: CWTitle = None
+        self.change_development_level: Token = None
+        self.insert_title_history: Token = None
+        self.reset_name: Token = None
+        self.succession_laws: CWObject = None
+        self.holder_ignore_head_of_faith_requirement: Token = None
+        self.remove_succession_laws: Token = None
 
     def __repr__(self):
         return self.date
@@ -656,6 +669,22 @@ class CWHistoryDate:
         if type(cwitem.special_building_slot) is list:
             cwitem.special_building_slot = cwitem.special_building_slot[-1].values.token
 
+        # Title
+        cwitem.holder = cwobject.get("holder")
+        cwitem.de_jure_liege = cwobject.get("de_jure_liege")
+        cwitem.government = cwobject.get("government")
+        cwitem.effect = cwobject.get("effect")
+        cwitem.name = cwobject.get("name")
+        cwitem.liege = cwobject.get("liege")
+        cwitem.change_development_level = cwobject.get("change_development_level")
+        cwitem.insert_title_history = cwobject.get("insert_title_history")
+        cwitem.reset_name = cwobject.get("reset_name")
+        cwitem.succession_laws = cwobject.get("succession_laws")
+        cwitem.holder_ignore_head_of_faith_requirement = cwobject.get(
+            "holder_ignore_head_of_faith_requirement"
+        )
+        cwitem.remove_succession_laws = cwobject.get("remove_succession_laws")
+
         return cwitem
 
 
@@ -707,7 +736,7 @@ class CWHistoryProvince(CWItem):
                 cwitem.dates.append(newdate)
 
     @classmethod
-    def handle_object(cls, cwobject: CWObject, parent: "CWTitle" = None):
+    def handle_object(cls, cwobject: CWObject):
         if cwobject.token.type == Token.LOCAL:
             CWLocal.handle_object(cwobject)
             return
@@ -740,6 +769,45 @@ class CWHistoryProvince(CWItem):
             cwitem.dates.append(newdate)
 
 
+class CWHistoryTitle(CWItem):
+    PATH = CWItem.PATH.joinpath("history/titles")
+    ALL: dict[str, "CWHistoryTitle"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.title: CWTitle = None
+        self.dates: list[CWHistoryDate] = []
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject):
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Number: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+
+        if cwitem.name in cls.ALL:
+            # append dates
+            cwitem = cls.ALL[cwitem.name]
+        else:
+            cls.ALL[cwitem.name] = cwitem
+            cwitem.title = CWTitle.ALL[cwobject.token.token]
+
+        cwitem.dates.append(CWHistoryDate.handle_object(cwobject, Token("1.1.1")))
+
+        for value in cwobject.values:
+            if value.token.type not in (Token.NUMBER, Token.DATE):
+                continue
+            elif value.token.type == Token.NUMBER:
+                value.token.transform_into_date()
+            cwitem.dates.append(CWHistoryDate.handle_object(value))
+
+
 def load_items():
     pass
 
@@ -751,4 +819,5 @@ CWCulture.load_files()
 CWReligionFamily.load_files()
 CWReligion.load_files()
 CWHistoryProvince.load_files()
+CWHistoryTitle.load_files()
 pass

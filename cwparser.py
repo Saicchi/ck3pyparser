@@ -289,9 +289,6 @@ def parse_group(
             if len(queue) == 0:
                 if token.type in CHAR_OPERATOR.values():
                     raise UnexpectedToken(token)
-                # if token.
-                # queue.append(token)
-                # continue
         except StopIteration:
             if queue and queue[-1].type != Token.OBJCLOSE:
                 raise QueueNotEmpty(queue)
@@ -308,13 +305,21 @@ def parse_group(
                 queue = queue[-1:]
             queue.append(token)
         elif token.type == Token.OBJOPEN:
-            if len(queue) > 0 and queue[-1].type in CHAR_OPERATOR.values():
-                if queue[-1].type not in (CHAR_OPERATOR["="], CHAR_OPERATOR["?="]):
-                    raise UnexpectedToken(token)
-                cwobject = CWObject(queue[-2], queue[-1])
-                cwobject.values = parse_group(tokens, cwobject)
-                objects.append(cwobject)
-                queue = queue[:-2]
+            if len(queue) > 0:
+                if queue[-1].type in CHAR_OPERATOR.values():
+                    # a = {}
+                    if queue[-1].type not in (CHAR_OPERATOR["="], CHAR_OPERATOR["?="]):
+                        raise UnexpectedToken(token)
+                    cwobject = CWObject(queue[-2], queue[-1])
+                    cwobject.values = parse_group(tokens, cwobject)
+                    objects.append(cwobject)
+                    queue = queue[:-2]
+                else:
+                    # a {}
+                    cwobject = CWObject(queue[-1], Token("="))
+                    cwobject.values = parse_group(tokens, cwobject)
+                    objects.append(cwobject)
+                    queue = queue[:-1]
             else:
                 if len(queue) > 1:
                     cwobject = CWObject()
