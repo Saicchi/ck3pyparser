@@ -583,13 +583,14 @@ class CWHistoryDate:
     def __init__(self):
         # On conflicting dates, latter defined takes priority
         self.date: Token = None
+        self.datenum: int = None
         self.index: int = None  # for priority
         self.from_map: bool = False  # data copied has higher priority
         # Generic
         self.effect: CWObject | Token = None
         # Province
         self.culture: CWCulture = None
-        self.religion: CWReligion = None
+        self.religion: CWFaith = None
         self.terrain: Token = None
         self.holding: Token = None
         self.buildings: list[Token] = []
@@ -611,7 +612,31 @@ class CWHistoryDate:
         self.remove_succession_laws: Token = None
 
     def __repr__(self):
-        return self.date
+        return self.date.token
+
+    def __gt__(self, other):
+        if type(other) == type(self):
+            return self.datenum > other.datenum
+        else:
+            return self.datenum > other
+
+    def __ge__(self, other):
+        if type(other) == type(self):
+            return self.datenum >= other.datenum
+        else:
+            return self.datenum >= other
+
+    def __lt__(self, other):
+        if type(other) == type(self):
+            return self.datenum < other.datenum
+        else:
+            return self.datenum < other
+
+    def __le__(self, other):
+        if type(other) == type(self):
+            return self.datenum <= other.datenum
+        else:
+            return self.datenum <= other
 
     @classmethod
     def handle_object(
@@ -621,11 +646,13 @@ class CWHistoryDate:
         if override_date is not None:
             if override_date.type != Token.DATE:
                 raise Exception(f"override not a date {override_date}")
-            cwitem.date = override_date.token
+            cwitem.date = override_date
         else:
             if cwobject.token.type != Token.DATE:
                 raise Exception(f"cwobject not a date {repr(cwobject)}")
-            cwitem.date = cwobject.name
+            cwitem.date = cwobject.token
+        splitdate = [int(date) for date in cwitem.date.token.split(".")]
+        cwitem.datenum = 10000 * splitdate[0] + 100 * splitdate[1] + splitdate[2]
 
         # Generic
         cwitem.effect = cwobject.get("effect", allow_multiple=True)
@@ -672,6 +699,11 @@ class CWHistoryDate:
         # Title
         cwitem.holder = cwobject.get("holder")
         cwitem.de_jure_liege = cwobject.get("de_jure_liege")
+        if cwitem.de_jure_liege is not None:
+            # de_jure_liege = 0
+            if cwitem.de_jure_liege.type in (Token.IDENTIFIER, Token.STRING):
+                cwitem.de_jure_liege = CWTitle.ALL[cwitem.de_jure_liege.token]
+
         cwitem.government = cwobject.get("government")
         cwitem.effect = cwobject.get("effect")
         cwitem.name = cwobject.get("name")

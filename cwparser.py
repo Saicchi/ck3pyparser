@@ -48,6 +48,7 @@ class Token:
         elif token == "}":
             self.type = Token.OBJCLOSE
         elif re.match(r'".+"$', token):
+            self.token = self.token[1:-1]
             self.type = Token.STRING
         elif re.match(r"@\[.+\]$", token):
             self.type = Token.EXPRESSION
