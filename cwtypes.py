@@ -8,8 +8,10 @@ BASEPATH = pathlib.Path(
 
 
 class CWItem:
-    PATH = BASEPATH.joinpath("")
+    PATH = BASEPATH
+    PATH_LOC = BASEPATH
     ALL: dict[str, "CWItem"] = {}
+    LOC: dict[str, CWLocalization] = {}
 
     def __init__(self):
         self.raw = None
@@ -41,6 +43,24 @@ class CWItem:
             for cwobject in cwobjects:
                 cls.handle_object(cwobject)
         cls.after_load()
+        cls.load_localization()
+
+    @classmethod
+    def load_localization(cls):
+        if cls.PATH_LOC == BASEPATH:
+            return  # do not load all files!!!
+        if cls.PATH_LOC.is_file():
+            files = [cls.PATH_LOC]
+        else:
+            files = cls.PATH_LOC.glob("*.txt")
+        for file in files:
+            print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
+            tokens = tokenize(read_file(file), file)
+            cwlocs = parse_file_yml(tokens)
+            for cwloc in cwlocs:
+                if cwloc.name in cls.LOC:
+                    cls.error(f"Duplicate Loc: {cwloc.name}")
+                cls.LOC[cwloc.name] = cwloc
 
     @classmethod
     def error(cls, message: str):
@@ -181,6 +201,7 @@ class CWColor(CWItem):
 
 class CWTitle(CWItem):
     PATH = CWItem.PATH.joinpath("common/landed_titles")
+    PATH_LOC = CWItem.PATH.joinpath("localization/english/titles_l_english.yml")
     ALL: dict[str, "CWTitle"] = {}
     PROVINCES: dict[int, "CWTitle"] = {}
 
@@ -404,6 +425,9 @@ class CWTradition(CWItem):
 
 class CWCulture(CWItem):
     PATH = CWItem.PATH.joinpath("common/culture/cultures")
+    PATH_LOC = CWItem.PATH.joinpath(
+        "localization/english/culture/cultures_l_english.yml"
+    )
     ALL: dict[str, "CWCulture"] = {}
 
     def __init__(self):
@@ -483,6 +507,7 @@ class CWReligionFamily(CWItem):
 
 class CWFaith(CWItem):
     ALL: dict[str, "CWFaith"] = {}
+    PATH_LOC = CWItem.PATH.joinpath("localization/english/religion")
 
     def __init__(self):
         self.raw: CWObject = None
