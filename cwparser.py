@@ -385,7 +385,7 @@ class CWLocalization:
         self.value = value[1:]
         if len(self.value) > 0 and self.value[-1] == '"':
             # sometimes strings are not terminated properly
-            self.value = self.value[:-2]
+            self.value = self.value[:-1]
 
     def __repr__(self):
         return f"{self.name}:{self.value}"

@@ -7,6 +7,15 @@ BASEPATH = pathlib.Path(
 )
 
 
+def load_loc(file: pathlib.Path) -> dict:
+    locs = {}
+    for cwloc in parse_file_yml(read_file(file)):
+        if cwloc.name in locs:
+            raise Exception(f"Duplicate Loc: {cwloc.name}")
+        locs[cwloc.name] = cwloc
+    return locs
+
+
 class CWItem:
     PATH = BASEPATH
     PATH_LOC = BASEPATH
@@ -52,7 +61,7 @@ class CWItem:
         if cls.PATH_LOC.is_file():
             files = [cls.PATH_LOC]
         else:
-            files = cls.PATH_LOC.glob("*.txt")
+            files = cls.PATH_LOC.glob("*.yml")
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
             cwlocs = parse_file_yml(read_file(file))
@@ -121,6 +130,10 @@ class CWColor(CWItem):
 
     def __repr__(self):
         return self.name if self.name else "NONAME"
+
+    def rgb() -> tuple:
+        # todo implement this
+        pass
 
     @staticmethod
     def get_color(cwobject: CWObject) -> "CWColor":
@@ -587,6 +600,10 @@ class CWReligionFamily(CWItem):
         cls.ALL[cwitem.name] = cwitem
         cwitem.is_pagan = cwobject.get("is_pagan", default_value=Token("no"))
 
+    @classmethod
+    def after_load(cls):
+        CWFaith.load_localization()
+
 
 class CWHolySite(CWItem):
     PATH = CWItem.PATH.joinpath("common/religion/holy_sites/00_holy_sites.txt")
@@ -634,6 +651,7 @@ class CWFaith(CWItem):
         self.raw: CWObject = None
         self.name: str = None
         self.religion: CWReligion = None
+        self.family: CWReligionFamily = None
         self.color: CWColor = None
         self.religious_head: CWTitle = None
         self.holy_site: list[CWObject] = []
@@ -656,6 +674,7 @@ class CWFaith(CWItem):
         cls.ALL[cwitem.name] = cwitem
 
         cwitem.religion = parent
+        cwitem.family = parent.family
         cwitem.color = CWColor.get_color(cwobject)
 
         cwitem.religious_head = cwobject.get("religious_head")
@@ -706,9 +725,7 @@ class CWReligion(CWItem):
             cls.error(f"Duplicate Title: {cwitem.name}")
         cls.ALL[cwitem.name] = cwitem
 
-        cwitem.family = cwobject.get("family")
-        if cwitem.family is None:
-            cls.error(f"{cwitem.name} has family")
+        cwitem.family = CWReligionFamily.ALL[cwobject.get("family").token]
 
         cwitem.pagan_roots = cwobject.get("pagan_roots", default_value=Token("no"))
         cwitem.doctrine = cwobject.get(
@@ -739,8 +756,8 @@ class CWHistoryDate:
         self.holding: Token = None
         self.buildings: list[Token] = []
         self.duchy_capital_building: Token = None
-        self.special_building: Token = None
-        self.special_building_slot: Token = None
+        self.special_building: CWBuilding = None
+        self.special_building_slot: CWBuilding = None
         # Title
         self.holder: Token = None
         self.de_jure_liege: CWTitle = None
@@ -832,13 +849,17 @@ class CWHistoryDate:
 
         cwitem.special_building = cwobject.get("special_building", allow_multiple=True)
         if type(cwitem.special_building) is list:
-            cwitem.special_building = cwitem.special_building[-1].values.token
+            cwitem.special_building = CWBuilding.ALL[
+                cwitem.special_building[-1].values.token
+            ]
 
         cwitem.special_building_slot = cwobject.get(
             "special_building_slot", allow_multiple=True
         )
         if type(cwitem.special_building_slot) is list:
-            cwitem.special_building_slot = cwitem.special_building_slot[-1].values.token
+            cwitem.special_building_slot = CWBuilding.ALL[
+                cwitem.special_building_slot[-1].values.token
+            ]
 
         # Title
         cwitem.holder = cwobject.get("holder")
@@ -891,25 +912,27 @@ class CWHistoryProvince(CWItem):
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
             tokens = tokenize(read_file(file), file)
             cwobjects = parse_group(tokens)
-        for cwobject in cwobjects:
-            if cwobject.token.type != Token.NUMBER:
-                cls.error("invalid mapping token type")
-            if cwobject.values.type != Token.NUMBER:
-                cls.error("invalid mapping token value")
+            for cwobject in cwobjects:
+                if cwobject.token.type != Token.NUMBER:
+                    cls.error("invalid mapping token type")
+                if cwobject.values.type != Token.NUMBER:
+                    cls.error("invalid mapping token value")
 
-            cwitem = cls()
-            cwitem.raw = cwobject
-            cwitem.name = cwobject.token.token
-            if cwitem.name not in cls.ALL:
-                # duplicates can exist ( province 4345 )
-                # add to existing one
-                cls.ALL[cwitem.name] = cwitem
+                cwitem = cls()
+                cwitem.raw = cwobject
+                cwitem.name = cwobject.token.token
+                if cwitem.name not in CWTitle.PROVINCES:
+                    continue  # not baronies
+                if cwitem.name not in cls.ALL:
+                    # duplicates can exist ( province 4345 )
+                    # add to existing one
+                    cls.ALL[cwitem.name] = cwitem
 
-            cwitem.barony = CWTitle.PROVINCES[cwobject.token.token]
-            for date in cls.ALL[cwobject.values.token].dates:
-                newdate = copy.copy(date)
-                newdate.from_map = True
-                cwitem.dates.append(newdate)
+                cwitem.barony = CWTitle.PROVINCES[cwobject.token.token]
+                for date in cls.ALL[cwobject.values.token].dates:
+                    newdate = copy.copy(date)
+                    newdate.from_map = True
+                    cwitem.dates.append(newdate)
 
     @classmethod
     def handle_object(cls, cwobject: CWObject):
@@ -984,6 +1007,30 @@ class CWHistoryTitle(CWItem):
             cwitem.dates.append(CWHistoryDate.handle_object(value))
 
 
+class CWCulturalNames(CWItem):
+    LOC_FILES = [
+        BASEPATH.joinpath(
+            "localization/english/culture/culture_name_lists_l_english.yml"
+        ),
+        BASEPATH.joinpath("localization/english/titles_cultural_names_l_english.yml"),
+    ]
+    LOC: dict[str, "CWCulturalNames"] = {}
+
+    @classmethod
+    def load_files(cls):
+        cls.load_localization()
+
+    @classmethod
+    def load_localization(cls):
+        for file in cls.LOC_FILES:
+            print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
+            cwlocs = parse_file_yml(read_file(file))
+            for cwloc in cwlocs:
+                if cwloc.name in cls.LOC:
+                    cls.error(f"Duplicate Loc: {cwloc.name}")
+                cls.LOC[cwloc.name] = cwloc
+
+
 def load_items():
     pass
 
@@ -998,4 +1045,5 @@ CWReligionFamily.load_files()
 CWReligion.load_files()
 CWHistoryProvince.load_files()
 CWHistoryTitle.load_files()
+CWCulturalNames.load_files()
 pass

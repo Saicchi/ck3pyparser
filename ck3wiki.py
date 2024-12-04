@@ -10,7 +10,7 @@ STARTING_DATES = {
 
 # Order Matters, first defined wins
 # Collected from game_start.txt
-EXTRA_SPECIAL = {
+EXTRA_SPECIAL = [
     ("religion", "islam_religion", "holy_site_mosque_01"),
     ("religion", "christianity_religion", "holy_site_cathedral_01"),
     ("religion", "zoroastrianism_religion", "holy_site_fire_temple_01"),
@@ -50,13 +50,44 @@ EXTRA_SPECIAL = {
     ("title", "b_barcelona", "generic_university"),
     ("title", "b_dumbarton", "generic_university"),
     ("title", "b_bidar", "generic_university"),
-}
+]
 
-# this = religion:
-# this = religion:
-# this = religion:
-# this = religion:
-# this = religion:
+
+def map_extra_special() -> dict:
+    mapping = {}
+    for extra in EXTRA_SPECIAL:
+        if extra[0] == "religion":
+            if extra[1] == "any":
+                faiths = list(CWFaith.ALL.values())
+            else:
+                faiths = CWReligion.ALL[extra[1]].faiths
+            holy_sites = set(sum([faith.holy_site for faith in faiths], []))
+            baronies = [site.barony.name for site in holy_sites]
+        elif extra[0] == "family":
+            if extra[1] == "any":
+                faiths = list(CWFaith.ALL.values())
+            else:
+                faiths = [
+                    faith
+                    for faith in CWFaith.ALL.values()
+                    if faith.family.name == extra[1]
+                ]
+            holy_sites = set(sum([faith.holy_site for faith in faiths], []))
+            baronies = [site.barony.name for site in holy_sites]
+        elif extra[0] == "title":
+            baronies = [extra[1]]
+        else:
+            raise Exception(f"unhandled category in extra: {extra[0]}")
+
+        for barony in baronies:
+            if barony not in mapping:
+                mapping[barony] = []
+            mapping[barony].append(extra[2])  # first in list has priority
+
+    return mapping
+
+
+EXTRA_SPECIAL_MAPPING = map_extra_special()
 
 
 class Title:
@@ -77,9 +108,9 @@ class Title:
         self.province: int = None
         self.capital: CWTitle = None
         self.altnames: dict[str, list[str]] = {}
-        self.parent: list[tuple[CWHistoryDate, CWTitle]] = []
+        self.parent: list[tuple[CWHistoryDate, Title]] = []
         self.development: list[tuple[CWHistoryDate, int]] = []
-        self.children: list[list[CWTitle]] = []
+        self.children: list[list[Title]] = []
         self.title_history: list[CWHistoryDate] = []
         self.culture: list[tuple[CWHistoryDate, CWCulture]] = []
         self.faith: list[tuple[CWHistoryDate, CWFaith]] = []
@@ -185,7 +216,10 @@ class Title:
                             title.parent.append((comparision_date, None))
                         else:
                             title.parent.append(
-                                (comparision_date, comparision_date.de_jure_liege)
+                                (
+                                    comparision_date,
+                                    comparision_date.de_jure_liege,
+                                )
                             )
                     else:
                         title.parent.append(title.parent[-1])
@@ -196,12 +230,16 @@ class Title:
             if cls.RANKS[rank] == CWTitle.EMPIRE:
                 continue  # empire is children of none
             for child_title in cls.RANK[cls.RANKS[rank]]:
-                for index in range(len(STARTING_DATES)):
-                    parent_title = child_title.parent[index + 1][1]  # CWTitle
+                for index in range(len(STARTING_DATES) + 1):
+                    parent_title = child_title.parent[index][1]  # CWTitle
                     if parent_title is None:
                         continue  # de_jure_liege = 0
                     parent_title = cls.ALL[parent_title.name]  # Title
-                    parent_title.children[index + 1].append(child_title)
+                    child_title.parent[index] = (
+                        child_title.parent[index][0],
+                        parent_title,
+                    )
+                    parent_title.children[index].append(child_title)
 
         print("Resolving capital")
         for rank in range(len(cls.RANKS)):
@@ -237,6 +275,7 @@ class Title:
                     else:
                         title.development.append(title.development[-1])
 
+        print("Resolving baronies values")
         for title in cls.RANK[CWTitle.BARONY]:
             for starting_date in STARTING_DATES:
                 # Culture
@@ -290,23 +329,98 @@ class Title:
                 county.faith = title.faith
 
             # Add extra special buildings
-            for extra in EXTRA_SPECIAL:
-                if len(title.special) != 1 or len(title.special_slot) != 1:
-                    continue  # baronies with a special building are skipped
-                if extra[0] == "religion":
-                    if extra[1] == "any":
-                        faiths = list(CWFaith.ALL.values())
-                    else:
-                        faiths = CWReligion.ALL[extra[1]].faiths
-                    pass
-                elif extra[0] == "family":
-                    pass
-                else:
-                    raise Exception(f"unhandled category in extra: {extra[0]}")
+            if title.name in EXTRA_SPECIAL_MAPPING:
+                specials = [value[1] for value in title.special]
+                specials += [value[1] for value in title.special_slot]
+                specials = set(specials)
+                if len(specials) == 1:  # None is always present
+                    # baronies with a special building are skipped
+                    building = CWBuilding.ALL[
+                        EXTRA_SPECIAL_MAPPING[title.name][0]
+                    ]  # first one wins
+                    for index in range(len(STARTING_DATES) + 1):
+                        title.special[index] = (title.special[index][0], building)
 
 
 Title.initialize()
 Title.after_initialize()
+
+
+def list_of_couties():
+    # https://ck3.paradoxwikis.com/List_of_counties
+    TABLE = """{{| class="wikitable sortable" style="text-align: left;"
+! colspan="2" rowspan="2" | County
+! rowspan="2" | [[List_of_duchies|Duchy]]
+! colspan="3" | [[List_of_kingdoms|Kingdom]]
+! colspan="3" | [[List_of_empires|Empire]]
+! rowspan="2" | [[Barony|Baronies]]
+! colspan="3" | [[Development]]
+! rowspan="2" | [[Special buildings|Special Buildings]]
+! colspan="3" | [[Culture]]
+! colspan="3" | [[Religion]]
+! rowspan="2" | Alternative Names
+! rowspan="2" | ID
+|-
+! 867 !! 1066 !! 1178
+! 867 !! 1066 !! 1178
+! 867 !! 1066 !! 1178
+! 867 !! 1066 !! 1178
+! 867 !! 1066 !! 1178
+{ROWS}
+|}}"""
+    TABLEROW = """|- id="{NAME}"
+{{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
+|{DUCHY}||{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|align="right"|{BARONIES}||align="right"|{DEVELOPMENT867}||align="right"|{DEVELOPMENT1066}||align="right"|{DEVELOPMENT1178}
+|{SPECIAL}||{CULTURE867}||{CULTURE1066}||{CULTURE1178}||{RELIGION867}||{RELIGION1066}||{RELIGION1178}||{ALTNAMES}||{ID}
+"""
+
+    wrows = []
+    for title in Title.RANK[CWTitle.COUNTY]:
+        wrow = TABLEROW.format(
+            NAME=CWTitle.LOC[title.name].value,
+            RED=0,
+            GREEN=0,
+            BLUE=0,
+            # --
+            DUCHY=CWTitle.LOC[title.parent[0][1].name].value,
+            # --
+            KINGDOM867=CWTitle.LOC[title.parent[1][1].parent[1][1].name].value,
+            KINGDOM1066=CWTitle.LOC[title.parent[2][1].parent[2][1].name].value,
+            KINGDOM1178=CWTitle.LOC[title.parent[3][1].parent[3][1].name].value,
+            # --
+            EMPIRE867=CWTitle.LOC[
+                title.parent[1][1].parent[1][1].parent[1][1].name
+            ].value,
+            EMPIRE1066=CWTitle.LOC[
+                title.parent[2][1].parent[2][1].parent[2][1].name
+            ].value,
+            EMPIRE1178=CWTitle.LOC[
+                title.parent[3][1].parent[3][1].parent[3][1].name
+            ].value,
+            # --
+            BARONIES=len(title.children[0]),
+            DEVELOPMENT867=title.development[1][1],
+            DEVELOPMENT1066=title.development[2][1],
+            DEVELOPMENT1178=title.development[3][1],
+            # --
+            SPECIAL="",
+            RELIGION867=CWFaith.LOC[title.faith[1][1].name].value,
+            RELIGION1066=CWFaith.LOC[title.faith[2][1].name].value,
+            RELIGION1178=CWFaith.LOC[title.faith[3][1].name].value,
+            # --
+            CULTURE867=CWCulture.LOC[title.faith[1][1].name].value,
+            CULTURE1066=CWCulture.LOC[title.faith[2][1].name].value,
+            CULTURE1178=CWCulture.LOC[title.faith[3][1].name].value,
+            # --
+            ALTNAMES="",
+            ID=title.name,
+        )
+        wrows.append(wrow)
+
+    with open("wikifiles/wikitable_counties.txt", "w", encoding="utf8") as f:
+        content = TABLE.format(ROWS="".join(wrows))
+        f.write(content)
 
 
 def list_of_kingdoms():
@@ -314,5 +428,7 @@ def list_of_kingdoms():
 
     pass
 
+
+list_of_couties()
 
 pass
