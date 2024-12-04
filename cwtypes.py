@@ -55,8 +55,7 @@ class CWItem:
             files = cls.PATH_LOC.glob("*.txt")
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
-            tokens = tokenize(read_file(file), file)
-            cwlocs = parse_file_yml(tokens)
+            cwlocs = parse_file_yml(read_file(file))
             for cwloc in cwlocs:
                 if cwloc.name in cls.LOC:
                     cls.error(f"Duplicate Loc: {cwloc.name}")
@@ -363,6 +362,90 @@ class CWTitle(CWItem):
                 cls.handle_object(value, cwitem)
 
 
+class CWBuilding(CWItem):
+    PATH = CWItem.PATH.joinpath("common/buildings")
+    PATH_LOC = CWItem.PATH.joinpath("localization/english/buildings_l_english.yml")
+    ALL: dict[str, "CWBuilding"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        # self.levy: Token = None
+        # self.max_garrison: Token = None
+        # self.garrison_reinforcement_factor: Token = None
+        # self.construction_time: Token = None
+        # self.type: Token = None
+        # self.asset: list[CWObject] = []
+        # self.is_enabled: CWObject = None
+        # self.can_construct_potential: CWObject = {}
+        # self.can_construct_showing_failures_only: CWObject = {}
+        # self.can_construct: CWObject = {}
+        # self.show_disabled: Token = None
+        # self.cost: CWObject = None
+        self.next_building: CWBuilding = None
+        self.building_line: list[CWBuilding] = []
+        # self.effect_desc: Token = None
+        # self.character_modifier: CWObject = None
+        # self.character_culture_modifier: CWObject = None
+        # self.character_faith_modifier: CWObject = None
+        # self.characer_dynasty_modifier: CWObject = None
+        # self.province_modifier: CWObject = None
+        # self.province_culture_modifier: CWObject = None
+        # self.province_faith_modifier: CWObject = None
+        # self.province_terrain_modifier: CWObject = None
+        # self.province_dynasty_modifier: CWObject = None
+        # self.county_modifier: CWObject = None
+        # self.county_culture_modifier: CWObject = None
+        # self.county_faith_modifier: CWObject = None
+        # self.duchy_capital_county_modifier: CWObject = None
+        # self.duchy_capital_county_culture_modifier: CWObject = None
+        # self.duchy_capital_county_faith_modifier: CWObject = None
+        # self.county_holding_modifier: CWObject = None
+        # self.county_dynasty_modifier: CWObject = None
+        # self.county_holder_character_modifier: CWObject = None
+        # self.flag: Token = None
+        # self.on_complete: CWObject = None
+        # self.ai_value: CWObject = None
+        # self.is_graphical_background: Token = None
+        # self.on_start: CWObject = None
+        # self.on_cancelled: CWObject = None
+        # self.on_complete: CWObject = None
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject):
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Identifier: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+        if cwitem.name in cls.ALL:
+            cls.error(f"Duplicate Building: {cwitem.name}")
+        cls.ALL[cwitem.name] = cwitem
+
+        next_buildings = cwobject.get(
+            "next_building", allow_multiple=True, default_value=[]
+        )
+        next_buildings = list(
+            set([building.values.token for building in next_buildings])
+        )
+        if len(next_buildings) == 0:
+            cwitem.next_building = None
+        elif len(next_buildings) != 1:
+            cls.error(f"multiple next buildings: {next_buildings}")
+        else:
+            cwitem.next_building = next_buildings[0]
+
+    @classmethod
+    def after_load(cls):
+        # Resolve Next Building
+        for building in cls.ALL.values():
+            building.next_building = CWBuilding.ALL[building.name]
+
+
 class CWTradition(CWItem):
     PATH = CWItem.PATH.joinpath("common/culture/traditions")
     ALL: dict[str, "CWTradition"] = {}
@@ -505,6 +588,44 @@ class CWReligionFamily(CWItem):
         cwitem.is_pagan = cwobject.get("is_pagan", default_value=Token("no"))
 
 
+class CWHolySite(CWItem):
+    PATH = CWItem.PATH.joinpath("common/religion/holy_sites/00_holy_sites.txt")
+    ALL: dict[str, "CWHolySite"] = {}
+
+    def __init__(self):
+        self.raw: CWObject = None
+        self.name: str = None
+        self.county: CWTitle = None
+        self.barony: CWTitle = None
+        self.character_modifier: str = None
+
+    @classmethod
+    def handle_object(cls, cwobject: CWObject) -> "CWFaith":
+        if cwobject.token.type == Token.LOCAL:
+            CWLocal.handle_object(cwobject)
+            return
+        elif cwobject.token.type != Token.IDENTIFIER:
+            cls.error(f"Token not Identifier: {repr(cwobject.token)}")
+
+        cwitem = cls()
+        cwitem.raw = cwobject
+        cwitem.name = cwobject.token.token
+
+        if cwitem.name in cls.ALL:
+            cls.error(f"Duplicate Holy Site: {cwitem.name}")
+        cls.ALL[cwitem.name] = cwitem
+
+        cwitem.county = CWTitle.ALL[cwobject.get("county").token]
+        cwitem.barony = cwobject.get("barony")
+        if cwitem.barony is not None:
+            cwitem.barony = CWTitle.ALL[cwitem.barony.token]
+        else:
+            cwitem.barony = cwitem.county.capital
+
+        cwitem.character_modifier = cwobject.get("character_modifier")
+        return cwitem
+
+
 class CWFaith(CWItem):
     ALL: dict[str, "CWFaith"] = {}
     PATH_LOC = CWItem.PATH.joinpath("localization/english/religion")
@@ -517,10 +638,6 @@ class CWFaith(CWItem):
         self.religious_head: CWTitle = None
         self.holy_site: list[CWObject] = []
         self.doctrine: list[Token] = []
-
-    @classmethod
-    def load(cls):
-        raise Exception(f"<{cls.__name__}> load called")
 
     @classmethod
     def handle_object(cls, cwobject: CWObject, parent: "CWReligion") -> "CWFaith":
@@ -548,7 +665,9 @@ class CWFaith(CWItem):
         cwitem.holy_site = cwobject.get(
             "holy_site", allow_multiple=True, default_value=[]
         )
-        cwitem.holy_site = [site.values for site in cwitem.holy_site]
+        cwitem.holy_site = [
+            CWHolySite.ALL[site.values.token] for site in cwitem.holy_site
+        ]
 
         cwitem.doctrine = cwobject.get(
             "doctrine", allow_multiple=True, default_value=[]
@@ -871,8 +990,10 @@ def load_items():
 
 CWColor.load_files()
 CWTitle.load_files()
+CWBuilding.load_files()
 CWTradition.load_files()
 CWCulture.load_files()
+CWHolySite.load_files()
 CWReligionFamily.load_files()
 CWReligion.load_files()
 CWHistoryProvince.load_files()

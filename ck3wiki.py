@@ -8,6 +8,56 @@ STARTING_DATES = {
     for date in STARTING_DATES
 }
 
+# Order Matters, first defined wins
+# Collected from game_start.txt
+EXTRA_SPECIAL = {
+    ("religion", "islam_religion", "holy_site_mosque_01"),
+    ("religion", "christianity_religion", "holy_site_cathedral_01"),
+    ("religion", "zoroastrianism_religion", "holy_site_fire_temple_01"),
+    ("religion", "hinduism_religion", "holy_site_indian_grand_temple_01"),
+    ("religion", "buddhism_religion", "holy_site_indian_grand_temple_01"),
+    ("religion", "jainism_religion", "holy_site_indian_grand_temple_01"),
+    ("religion", "tani_religion", "holy_site_indian_grand_temple_01"),
+    ("religion", "bon_religion", "holy_site_indian_grand_temple_01"),
+    ("family", "rf_pagan", "holy_site_pagan_grand_temple_01"),
+    ("religion", "any", "holy_site_other_grand_temple_01"),
+    ("title", "b_fes", "generic_university"),
+    ("title", "b_salamanca", "generic_university"),
+    ("title", "b_madrid", "generic_university"),
+    ("title", "b_cambridge", "generic_university"),
+    ("title", "b_padua", "generic_university"),
+    ("title", "b_coimbra", "generic_university"),
+    ("title", "b_napoli", "generic_university"),
+    ("title", "b_milano", "generic_university"),
+    ("title", "b_vienna", "generic_university"),
+    ("title", "b_praha", "generic_university"),
+    ("title", "b_perugia", "generic_university"),
+    ("title", "b_malappuram", "generic_university"),
+    ("title", "b_janakpur", "generic_university"),
+    ("title", "b_uppsala", "generic_university"),
+    ("title", "b_montlhery", "generic_university"),
+    ("title", "b_qartajana", "generic_university"),
+    ("title", "b_wazwan", "generic_university"),
+    ("title", "b_sarsar", "generic_university"),
+    ("title", "b_speyer", "generic_university"),
+    ("title", "b_krakow", "generic_university"),
+    ("title", "b_pisa", "generic_university"),
+    ("title", "b_rostock", "generic_university"),
+    ("title", "b_turin", "generic_university"),
+    ("title", "b_ferrara", "generic_university"),
+    ("title", "b_leipzig", "generic_university"),
+    ("title", "b_messina", "generic_university"),
+    ("title", "b_barcelona", "generic_university"),
+    ("title", "b_dumbarton", "generic_university"),
+    ("title", "b_bidar", "generic_university"),
+}
+
+# this = religion:
+# this = religion:
+# this = religion:
+# this = religion:
+# this = religion:
+
 
 class Title:
     ALL: dict[str, "Title"] = {}
@@ -163,7 +213,6 @@ class Title:
 
         print("Resolving development")
         # Resolve development, top to bottom
-        # copy this code for culture and faith
 
         for rank in range(len(cls.RANKS)):
             if cls.RANKS[rank] == CWTitle.BARONY:
@@ -239,6 +288,21 @@ class Title:
             if title.name == county.capital.name:
                 county.culture = title.culture
                 county.faith = title.faith
+
+            # Add extra special buildings
+            for extra in EXTRA_SPECIAL:
+                if len(title.special) != 1 or len(title.special_slot) != 1:
+                    continue  # baronies with a special building are skipped
+                if extra[0] == "religion":
+                    if extra[1] == "any":
+                        faiths = list(CWFaith.ALL.values())
+                    else:
+                        faiths = CWReligion.ALL[extra[1]].faiths
+                    pass
+                elif extra[0] == "family":
+                    pass
+                else:
+                    raise Exception(f"unhandled category in extra: {extra[0]}")
 
 
 Title.initialize()

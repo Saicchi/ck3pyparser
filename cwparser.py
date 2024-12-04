@@ -90,10 +90,12 @@ class Token:
         self.token = ".".join([str(value) for value in values[:3]])
 
 
-def read_file(filename: pathlib.Path) -> str:
+def read_file(filename: pathlib.Path | str) -> str:
     # CK3 files are split between UTF-8 with BOM (UTF-8-SIG)
     # and Windows CP-1252 (Windows-1252) for some godforsaken reason
     # Try one, if it fails use the other
+    if type(filename) is str:
+        filename = pathlib.Path(filename)
     try:
         with filename.open("r", encoding="utf-8-sig") as f:
             return f.read()
@@ -277,90 +279,6 @@ class QueueNotEmpty(Exception):
         )
 
 
-class CWLoc:
-    ALL = []
-    INDEX = 0
-
-    def __init__(self, token: Token = None, operator: Token = None):
-        self.token = token
-        self.index = CWObject.INDEX
-        self.name = token.token if token else f"OBJ{self.index}"
-        self.operator = operator
-        self.values: Token | list[Token | CWObject] = []
-        CWObject.INDEX += 1
-        CWObject.ALL.append(self)
-
-    def find(self, name: str) -> list[int]:
-        if type(self.values) is Token:
-            raise Exception(f"{repr(self)} is single value but find was called")
-        ret = []
-        for index, cwobject in enumerate(self.values):
-            if cwobject.token is None:
-                continue
-            if cwobject.token.token == name:
-                ret.append(index)
-        return ret
-
-    def get(
-        self, name: str, allow_multiple=False, default_value=None, return_value=True
-    ) -> "CWObject":
-        indexes = self.find(name)
-        if len(indexes) == 0:
-            return default_value
-        if len(indexes) > 1 and not allow_multiple:
-            raise Exception(
-                f"Duplicate '{name}' Values: {'\n'.join([repr(self.values[index]) for index in indexes])}"
-            )
-        if allow_multiple:
-            # sometimes values are duplicated, even though they should not be!!!
-            # ex: b_yalachi duplicated province = 5505
-            return [self.values[index] for index in indexes]
-        else:
-            if return_value:
-                return self.values[indexes[0]].values
-            else:
-                return self.values[indexes[0]]
-
-    def __repr__(self):
-        name = self.name if not self.token else self.token.token
-        if self.operator is not None:
-            if type(self.values) is Token:
-                return f"{name}{self.operator.token}{self.values.token}"
-            else:
-                return f"{name}{self.operator.token}{{OBJ}}"
-        else:
-            return name
-
-    def __len__(self):
-        return len(self.values)
-
-    def __getitem__(self, i):
-        return self.values[i]
-
-    def describe(self, indent: int = 0) -> str:
-        retstr = ""
-        if self.token:
-            retstr += f"{self.token.token}"
-            if self.operator:
-                retstr += f" {self.operator.token} "
-            else:
-                retstr += " = "
-        if type(self.values) is Token:
-            retstr += f"{self.values.token}"
-        else:
-            retstr += "{ "
-            for value in self.values:
-                if type(value) is Token:
-                    retstr += f"{str(value.token)} "
-                else:
-                    retstr += f"{value.describe(indent + 4)} "
-            retstr += "}"
-        return retstr
-
-    def append(self, token: Token):
-        self.values.append(token)
-
-
 # Clausewitz Parser
 def parse_group(
     tokens: Generator[Token, any, any], parent: CWObject = None
@@ -461,79 +379,40 @@ def parse_group(
 
 
 class CWLocalization:
-    def __init__(self, name: Token, value: Token):
-        if name.type != Token.IDENTIFIER:
-            raise UnexpectedToken(name)
-        if ":" not in name.token:
-            raise UnexpectedToken(name)
-        # the optional number after can be ignored
-        self.name = name.token[: name.token.index(":")]
-
-        if value.type != Token.STRING:
-            if value.token != '""':
-                raise UnexpectedToken(value)
-        self.value = value.token
+    def __init__(self, name: str, value: str):
+        self.name = name
+        # no need to store quotes
+        self.value = value[1:]
+        if len(self.value) > 0 and self.value[-1] == '"':
+            # sometimes strings are not terminated properly
+            self.value = self.value[:-2]
 
     def __repr__(self):
         return f"{self.name}:{self.value}"
 
 
 # Regular YML parsers don't work on CK3 files
-def parse_file_yml(tokens: Generator[Token, any, any]):
-    objects: list[CWLocalization] = []
-    queue: list[Token] = []
+def parse_file_yml(text: str) -> list[CWLocalization]:
+    # when reading \n becomes \\n (\\, n)
+    locs = []
+    lines = text.split("\n")
+    for key, line in enumerate(lines):
+        line = line.strip()
+        quotes = [key for key, value in enumerate(line) if value == '"']
+        if len(quotes) == 0:
+            continue  # line without a value
 
-    while True:
-        try:
-            token = next(tokens)
-        except StopIteration:
-            if len(queue) > 0:
-                raise QueueNotEmpty(queue)
-            return objects
+        comment_index = line.find("#")
+        if comment_index != -1:
+            # comments before the string start are counted
+            # before that everything is part of the string
+            if quotes[0] > comment_index:
+                line = line[:comment_index].strip()
+                quotes = [key for key, value in enumerate(line) if value == '"']
+                if len(quotes) == 0:
+                    continue  # line without a value
 
-        if token.token == "l_english:":
-            continue
-        elif token.type == Token.IDENTIFIER:
-            if len(queue) > 0:
-                # blame d_placeholder:0 ""
-                if token.token != '""':
-                    raise UnexpectedToken(token)
-                if len(queue) != 1:
-                    raise UnexpectedToken(token)
-                objects.append(CWLocalization(queue[0], token))
-                queue = []
-                continue
-            queue.append(token)
-        elif token.type == Token.STRING:
-            if len(queue) != 1:
-                raise UnexpectedToken(token)
-            objects.append(CWLocalization(queue[0], token))
-            queue = []
-        else:
-            raise UnexpectedToken(token)
-
-
-# for row in f.readlines():
-## BUILDING_TOOLTIP_TEXT:1 "[Building.GetDescription]\n\n#S Effect:\n#![Building.GetEffectDescription( GetPlayer )]"
-# row = row.strip()
-# if not row:
-# continue  # no empty rows
-# name, value = row.split(":", 1)
-# number, value = value.split(" ", 1)
-# if number:
-# number = int(number)  # sanity check
-# if value == '""':
-# continue  # fuck you d_placeholder
-# value = re.match('"(.+)"', value)[1]
-# if "$" in value:
-# continue  # no references
-# if "_desc" in name:
-# continue  # no descriptions
-# if "building_" not in name:
-# continue
-# if "building_type_" in name:
-# name = name[len("building_type_") :]
-# else:
-# name = name[len("building_") :]
-# buildings[name] = value
-# k
+        name = line[: line.index(":")].strip()  # ignore versioning number
+        value = line[quotes[0] :].strip()  # everything till the end is valid
+        locs.append(CWLocalization(name, value))
+    return locs
