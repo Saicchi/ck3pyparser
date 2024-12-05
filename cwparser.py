@@ -378,21 +378,56 @@ def parse_group(
             raise UnexpectedToken(token)
 
 
-class CWLocalization:
+class CWLoc:
+    ALL: list[str, "CWLoc"] = {}
+    # words with no localization entry, skip them
+    LOC_LINK_IGNORE = ["NAME", "TIER", "BASE_NAME", "VALUE"]
+
     def __init__(self, name: str, value: str):
         self.name = name
         # no need to store quotes
         self.value = value[1:]
-        if len(self.value) > 0 and self.value[-1] == '"':
-            # sometimes strings are not terminated properly
-            self.value = self.value[:-1]
+
+        # sometimes strings are not terminated properly
+        # but when they are, ignore comments after them
+        if self.value.rfind('"') != -1:
+            self.value = self.value[: self.value.rindex('"')]
+        if self.name in CWLoc.ALL:
+            print(f"Duplicate Loc: {self.name}")
+            return
+            # raise Exception(f"Duplicate Loc: {self.name}")
+        CWLoc.ALL[self.name] = self
+
+    @staticmethod
+    def link_loc(key: str):
+        # name: "$loc1$ $loc2$"
+        search = re.findall(r"\$.*?\$", CWLoc.ALL[key].value)
+        if len(search) == 0:
+            return
+        newtext = CWLoc.ALL[key].value
+        for link in search:
+            oldtext = link[1:-1].split("|")
+            if oldtext[0] in CWLoc.LOC_LINK_IGNORE:
+                continue
+            replacetext = CWLoc[oldtext[0]].value
+            if len(oldtext) > 2:
+                raise Exception(f"linking argument parsing error: {CWLoc.ALL[key]}")
+            elif len(oldtext) == 2:
+                # name = "$VAL|L$"
+                replacetext = f"#{oldtext[1]} {replacetext}#!"
+            newtext = newtext.replace(link, replacetext)
+        CWLoc.ALL[key].value = newtext
+
+    def __class_getitem__(cls, key) -> "CWLoc":
+        CWLoc.link_loc(key)
+        return cls.ALL[key]
 
     def __repr__(self):
         return f"{self.name}:{self.value}"
 
 
 # Regular YML parsers don't work on CK3 files
-def parse_file_yml(text: str) -> list[CWLocalization]:
+def parse_file_yml(text: str) -> list[CWLoc]:
     # when reading \n becomes \\n (\\, n)
     locs = []
     lines = text.split("\n")
@@ -413,6 +448,6 @@ def parse_file_yml(text: str) -> list[CWLocalization]:
                     continue  # line without a value
 
         name = line[: line.index(":")].strip()  # ignore versioning number
-        value = line[quotes[0] :].strip()  # everything till the end is valid
-        locs.append(CWLocalization(name, value))
+        value = line[quotes[0] :].strip()  # sort things out inside
+        locs.append(CWLoc(name, value))
     return locs

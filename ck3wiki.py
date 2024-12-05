@@ -87,6 +87,11 @@ def map_extra_special() -> dict:
     return mapping
 
 
+# load everything, fuck it we ball
+# ENGLISH_LOC = BASEPATH.joinpath("localization/english")
+# for file in ENGLISH_LOC.rglob("*.yml"):
+# load_loc(file)
+
 EXTRA_SPECIAL_MAPPING = map_extra_special()
 
 
@@ -141,10 +146,11 @@ class Title:
                 title.parent.append((stubdate, cwtitle.parents[-1]))
             else:
                 title.parent.append((stubdate, None))
-            title.children.append(cwtitle.children)
+            title.children.append([])
+            title.development.append((stubdate, 0))
             for _ in STARTING_DATES:
                 title.children.append([])
-            title.development.append((stubdate, 0))
+                title.development.append((stubdate, 0))
             title.culture.append((stubdate, None))
             title.faith.append((stubdate, None))
             title.special.append((stubdate, None))
@@ -161,7 +167,8 @@ class Title:
                 value = item.values.token
                 if value not in title.altnames:
                     title.altnames[value] = []
-                title.altnames[value].append(namelist)
+                if namelist not in title.altnames[value]:  # set messes up order
+                    title.altnames[value].append(namelist)
 
             if title.name in CWHistoryTitle.ALL:
                 title.title_history = CWHistoryTitle.ALL[title.name].dates
@@ -252,28 +259,33 @@ class Title:
         print("Resolving development")
         # Resolve development, top to bottom
 
-        for rank in range(len(cls.RANKS)):
+        for rank in reversed(range(len(cls.RANKS))):
             if cls.RANKS[rank] == CWTitle.BARONY:
                 continue  # barony has no development
             for title in cls.RANK[cls.RANKS[rank]]:
-                for starting_date in STARTING_DATES:
+                for index, starting_date in enumerate(STARTING_DATES):
                     # Development
                     comparision_date = compare_history(
                         "change_development_level",
                         title,
-                        title.development[-1][0],
+                        title.development[index + 1][0],
                         starting_date,
                         False,
                     )
                     if comparision_date.change_development_level is not None:
-                        title.development.append(
-                            (
-                                comparision_date,
-                                comparision_date.change_development_level.token,
-                            )
+                        title.development[index + 1] = (
+                            comparision_date,
+                            comparision_date.change_development_level.token,
                         )
                     else:
-                        title.development.append(title.development[-1])
+                        title.development[index + 1] = title.development[index]
+                    if title.rank == CWTitle.COUNTY:
+                        continue  # barony has no development
+                    for child_title in title.children[index + 1]:
+                        # top to bottom, pass development to children
+                        child_title.development[index + 1] = title.development[
+                            index + 1
+                        ]
 
         print("Resolving baronies values")
         for title in cls.RANK[CWTitle.BARONY]:
@@ -377,43 +389,65 @@ def list_of_couties():
 
     wrows = []
     for title in Title.RANK[CWTitle.COUNTY]:
+        color = title.color.rgb()
+
+        altnames = {}
+        for altname in title.altnames:
+            if altname in CWLoc.ALL:
+                localtname = CWLoc[altname].value
+            else:
+                localtname = CWLoc[altname].value
+            altnames[localtname] = []
+            for namelist in title.altnames[altname]:
+                altnames[localtname].append(CWLoc[namelist].value)
+            altnames[localtname] = ", ".join(altnames[localtname])
+        altnames = "<br>".join([f"{key} ({value})" for key, value in altnames.items()])
+
+        specials = []
+        for child_title in title.children[0]:
+            barony_specials = [value[1] for value in child_title.special]
+            barony_specials += [value[1] for value in child_title.special_slot]
+            barony_specials = [
+                building.building_line[0]
+                for building in barony_specials
+                if building is not None
+            ]
+            specials += set(barony_specials)
+        specials = "<br>".join(
+            [CWLoc[f"building_{building.name}"].value for building in specials]
+        )
+
         wrow = TABLEROW.format(
-            NAME=CWTitle.LOC[title.name].value,
-            RED=0,
-            GREEN=0,
-            BLUE=0,
+            NAME=CWLoc[title.name].value,
+            RED=color[0],
+            GREEN=color[1],
+            BLUE=color[2],
             # --
-            DUCHY=CWTitle.LOC[title.parent[0][1].name].value,
+            DUCHY=CWLoc[title.parent[1][1].name].value,  # 867 Value
             # --
-            KINGDOM867=CWTitle.LOC[title.parent[1][1].parent[1][1].name].value,
-            KINGDOM1066=CWTitle.LOC[title.parent[2][1].parent[2][1].name].value,
-            KINGDOM1178=CWTitle.LOC[title.parent[3][1].parent[3][1].name].value,
+            KINGDOM867=CWLoc[title.parent[1][1].parent[1][1].name].value,
+            KINGDOM1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
+            KINGDOM1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
-            EMPIRE867=CWTitle.LOC[
-                title.parent[1][1].parent[1][1].parent[1][1].name
-            ].value,
-            EMPIRE1066=CWTitle.LOC[
-                title.parent[2][1].parent[2][1].parent[2][1].name
-            ].value,
-            EMPIRE1178=CWTitle.LOC[
-                title.parent[3][1].parent[3][1].parent[3][1].name
-            ].value,
+            EMPIRE867=CWLoc[title.parent[1][1].parent[1][1].parent[1][1].name].value,
+            EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].parent[2][1].name].value,
+            EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].parent[3][1].name].value,
             # --
             BARONIES=len(title.children[0]),
             DEVELOPMENT867=title.development[1][1],
             DEVELOPMENT1066=title.development[2][1],
             DEVELOPMENT1178=title.development[3][1],
             # --
-            SPECIAL="",
-            RELIGION867=CWFaith.LOC[title.faith[1][1].name].value,
-            RELIGION1066=CWFaith.LOC[title.faith[2][1].name].value,
-            RELIGION1178=CWFaith.LOC[title.faith[3][1].name].value,
+            SPECIAL=specials,
+            RELIGION867=CWLoc[title.faith[1][1].name].value,
+            RELIGION1066=CWLoc[title.faith[2][1].name].value,
+            RELIGION1178=CWLoc[title.faith[3][1].name].value,
             # --
-            CULTURE867=CWCulture.LOC[title.faith[1][1].name].value,
-            CULTURE1066=CWCulture.LOC[title.faith[2][1].name].value,
-            CULTURE1178=CWCulture.LOC[title.faith[3][1].name].value,
+            CULTURE867=CWLoc[title.culture[1][1].name].value,
+            CULTURE1066=CWLoc[title.culture[2][1].name].value,
+            CULTURE1178=CWLoc[title.culture[3][1].name].value,
             # --
-            ALTNAMES="",
+            ALTNAMES=altnames,
             ID=title.name,
         )
         wrows.append(wrow)

@@ -1,5 +1,6 @@
 import pathlib
 import copy
+import re
 from cwparser import *
 
 BASEPATH = pathlib.Path(
@@ -20,7 +21,6 @@ class CWItem:
     PATH = BASEPATH
     PATH_LOC = BASEPATH
     ALL: dict[str, "CWItem"] = {}
-    LOC: dict[str, CWLocalization] = {}
 
     def __init__(self):
         self.raw = None
@@ -58,17 +58,15 @@ class CWItem:
     def load_localization(cls):
         if cls.PATH_LOC == BASEPATH:
             return  # do not load all files!!!
-        if cls.PATH_LOC.is_file():
+        if type(cls.PATH_LOC) is list:
+            files = cls.PATH_LOC
+        elif cls.PATH_LOC.is_file():
             files = [cls.PATH_LOC]
         else:
             files = cls.PATH_LOC.glob("*.yml")
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
-            cwlocs = parse_file_yml(read_file(file))
-            for cwloc in cwlocs:
-                if cwloc.name in cls.LOC:
-                    cls.error(f"Duplicate Loc: {cwloc.name}")
-                cls.LOC[cwloc.name] = cwloc
+            _ = parse_file_yml(read_file(file))  # CWLoc init handles it
 
     @classmethod
     def error(cls, message: str):
@@ -131,9 +129,34 @@ class CWColor(CWItem):
     def __repr__(self):
         return self.name if self.name else "NONAME"
 
-    def rgb() -> tuple:
-        # todo implement this
-        pass
+    def rgb(self) -> tuple:
+        # todo implement this LMAO
+        # inputs floats, outputs 0-255
+        if self.type in (CWColor.HSV, CWColor.HSV360):
+            # https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
+            C = self.values[1].token * self.values[2].token
+            H1 = self.values[0].token / 60
+            X = C * (1 - abs((H1 % 2) - 1))
+            M = self.values[1].token - C
+            if H1 < 1:
+                rgbvalues = (C + M, X + M, 0 + M)
+            elif H1 < 2:
+                rgbvalues = (X + M, C + M, 0 + M)
+            elif H1 < 3:
+                rgbvalues = (0 + M, C + M, X + M)
+            elif H1 < 4:
+                rgbvalues = (0 + M, X + M, C + M)
+            elif H1 < 5:
+                rgbvalues = (X + M, 0 + M, C + M)
+            elif H1 < 6:
+                rgbvalues = (C + M, 0 + M, X + M)
+            else:
+                raise Exception("Invalid HSV value")
+            return rgbvalues
+        else:
+            if self.values[0].token < 1 and self.values[0].token > 0:
+                pass
+            return (self.values[0].token, self.values[1].token, self.values[2].token)
 
     @staticmethod
     def get_color(cwobject: CWObject) -> "CWColor":
@@ -377,7 +400,11 @@ class CWTitle(CWItem):
 
 class CWBuilding(CWItem):
     PATH = CWItem.PATH.joinpath("common/buildings")
-    PATH_LOC = CWItem.PATH.joinpath("localization/english/buildings_l_english.yml")
+    PATH_LOC = [
+        BASEPATH.joinpath("localization/english/buildings_l_english.yml"),
+        BASEPATH.joinpath("localization/english/dlc/ce1/ce1_buildings_l_english.yml"),
+        BASEPATH.joinpath("localization/english/dlc/fp3/dlc_fp3_culture_l_english.yml"),
+    ]
     ALL: dict[str, "CWBuilding"] = {}
 
     def __init__(self):
@@ -396,6 +423,7 @@ class CWBuilding(CWItem):
         # self.show_disabled: Token = None
         # self.cost: CWObject = None
         self.next_building: CWBuilding = None
+        self.previous_building: CWBuilding = None
         self.building_line: list[CWBuilding] = []
         # self.effect_desc: Token = None
         # self.character_modifier: CWObject = None
@@ -456,7 +484,20 @@ class CWBuilding(CWItem):
     def after_load(cls):
         # Resolve Next Building
         for building in cls.ALL.values():
-            building.next_building = CWBuilding.ALL[building.name]
+            if building.next_building is not None:
+                building.next_building = CWBuilding.ALL[building.next_building]
+                building.next_building.previous_building = building
+
+        # Resolve Building Line
+        for building in cls.ALL.values():
+            if building.previous_building is not None:
+                continue  # start from base
+            building.building_line.append(building)  # add base
+            next_building = building.next_building
+            while next_building is not None:
+                building.building_line.append(next_building)
+                next_building.building_line = building.building_line  # reference
+                next_building = next_building.next_building
 
 
 class CWTradition(CWItem):
@@ -1008,27 +1049,16 @@ class CWHistoryTitle(CWItem):
 
 
 class CWCulturalNames(CWItem):
-    LOC_FILES = [
+    PATH_LOC = [
         BASEPATH.joinpath(
             "localization/english/culture/culture_name_lists_l_english.yml"
         ),
         BASEPATH.joinpath("localization/english/titles_cultural_names_l_english.yml"),
     ]
-    LOC: dict[str, "CWCulturalNames"] = {}
 
     @classmethod
     def load_files(cls):
         cls.load_localization()
-
-    @classmethod
-    def load_localization(cls):
-        for file in cls.LOC_FILES:
-            print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
-            cwlocs = parse_file_yml(read_file(file))
-            for cwloc in cwlocs:
-                if cwloc.name in cls.LOC:
-                    cls.error(f"Duplicate Loc: {cwloc.name}")
-                cls.LOC[cwloc.name] = cwloc
 
 
 def load_items():
