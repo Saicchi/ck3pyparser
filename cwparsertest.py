@@ -68,5 +68,3 @@ for text, expected in TESTS.items():
         print("+++")
         print(expected)
         print("----------------------------")
-
-    pass

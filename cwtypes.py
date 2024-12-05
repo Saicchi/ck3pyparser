@@ -173,8 +173,6 @@ class CWColor(CWItem):
         # color = { 255 255 255 } color = hsv { 0.1 0.1 0.1 }
         cwcolor = CWColor()
         colors = cwobject.get("color", return_value=False)
-        if cwobject.name == "d_northumberland":
-            pass
         if colors is None:
             cwcolor.values = [Token("255"), Token("255"), Token("255")]
             cwcolor.type = CWColor.REGULAR

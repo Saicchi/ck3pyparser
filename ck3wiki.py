@@ -293,8 +293,6 @@ class Title:
                     # Modification from compare_history function
                     comparision_date = title.altnames_date[-1][0]
                     datename = None
-                    if title.name == "d_lower_silesia":
-                        pass
                     for date in title.title_history:
                         if date > STARTING_DATES[starting_date]:
                             continue
@@ -487,7 +485,7 @@ def list_of_couties():
             EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].parent[2][1].name].value,
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].parent[3][1].name].value,
             # --
-            BARONIES=len(title.children[0]),
+            BARONIES=len(title.children[1]),
             DEVELOPMENT867=title.development[1][1],
             DEVELOPMENT1066=title.development[2][1],
             DEVELOPMENT1178=title.development[3][1],
@@ -514,24 +512,20 @@ def list_of_couties():
 def list_of_duchies():
     # https://ck3.paradoxwikis.com/List_of_duchies
     TABLE = """{{| class="wikitable sortable" style="text-align: left;"
-! colspan="2" rowspan="3" | Duchy
+! colspan="2" rowspan="2" | Duchy
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
-! rowspan="3" | [[County|Counties]]
-! rowspan="3" | [[Barony|Baronies]]
-! colspan="9" | [[County#Development|Development]]
-! rowspan="3" | [[Special buildings|Special Buildings]]
-! rowspan="3" | Alternative Names
-! rowspan="3" | Capital
-! rowspan="3" | ID
+! rowspan="2" | [[County|Counties]]
+! rowspan="2" | [[Barony|Baronies]]
+! colspan="3" | [[County#Development|Average Development]]
+! rowspan="2" | [[Special buildings|Special Buildings]]
+! rowspan="2" | Alternative Names
+! rowspan="2" | Capital
+! rowspan="2" | ID
 |-
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
-! colspan="3" | 867 !! colspan="3" | 1066 !! colspan="3" | 1178
-|-
-! MAX !! AVG !! SUM
-! MAX !! AVG !! SUM
-! MAX !! AVG !! SUM
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 {ROWS}
 |}}"""
 
@@ -539,9 +533,7 @@ def list_of_duchies():
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
 |{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
 |align="right"|{COUNTIES}||align="right"|{BARONIES}
-|align="right"|{DEV_MAX867}||align="right"|{DEV_AVG867}||align="right"|{DEV_SUM867}
-|align="right"|{DEV_MAX1066}||align="right"|{DEV_AVG1066}||align="right"|{DEV_SUM1066}
-|align="right"|{DEV_MAX1178}||align="right"|{DEV_AVG1178}||align="right"|{DEV_SUM1178}
+|align="right"|{DEV_AVG867}||align="right"|{DEV_AVG1066}||align="right"|{DEV_AVG1178}
 |{SPECIAL}||{ALTNAMES}||{CAPITAL}||{ID}
 """
 
@@ -600,20 +592,12 @@ def list_of_duchies():
             EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
-            COUNTIES=len(title.children[0]),
-            BARONIES=sum([len(child.children[0]) for child in title.children[0]]),
+            COUNTIES=len(title.children[1]),
+            BARONIES=sum([len(child.children[1]) for child in title.children[1]]),
             # --
             DEV_AVG867=int(sum(dev867) / len(dev867)),
             DEV_AVG1066=int(sum(dev1066) / len(dev1066)),
             DEV_AVG1178=int(sum(dev1178) / len(dev1178)),
-            # --
-            DEV_MAX867=int(max(dev867)),
-            DEV_MAX1066=int(max(dev1066)),
-            DEV_MAX1178=int(max(dev1178)),
-            # --
-            DEV_SUM867=int(sum(dev867)),
-            DEV_SUM1066=int(sum(dev1066)),
-            DEV_SUM1178=int(sum(dev1178)),
             # --
             SPECIAL=specials,
             ALTNAMES=get_altnames(title),
