@@ -113,6 +113,7 @@ class Title:
         self.province: int = None
         self.capital: CWTitle = None
         self.altnames: dict[str, list[str]] = {}
+        self.altnames_date: list[tuple[CWHistoryDate, str]] = []
         self.parent: list[tuple[CWHistoryDate, Title]] = []
         self.development: list[tuple[CWHistoryDate, int]] = []
         self.children: list[list[Title]] = []
@@ -151,6 +152,7 @@ class Title:
             for _ in STARTING_DATES:
                 title.children.append([])
                 title.development.append((stubdate, 0))
+            title.altnames_date.append((stubdate, None))
             title.culture.append((stubdate, None))
             title.faith.append((stubdate, None))
             title.special.append((stubdate, None))
@@ -256,9 +258,8 @@ class Title:
                 if title.capital is not None:
                     title.capital = cls.ALL[title.capital.name]
 
-        print("Resolving development")
+        print("Resolving development and alternative date names")
         # Resolve development, top to bottom
-
         for rank in reversed(range(len(cls.RANKS))):
             if cls.RANKS[rank] == CWTitle.BARONY:
                 continue  # barony has no development
@@ -279,13 +280,27 @@ class Title:
                         )
                     else:
                         title.development[index + 1] = title.development[index]
-                    if title.rank == CWTitle.COUNTY:
-                        continue  # barony has no development
-                    for child_title in title.children[index + 1]:
-                        # top to bottom, pass development to children
-                        child_title.development[index + 1] = title.development[
-                            index + 1
-                        ]
+                    if title.rank != CWTitle.COUNTY:
+                        # barony has no development
+                        for child_title in title.children[index + 1]:
+                            # top to bottom, pass development to children
+                            child_title.development[index + 1] = title.development[
+                                index + 1
+                            ]
+
+                    # Alternative Name
+                    # 'reset_name = yes' can be ignored for the wiki
+                    comparision_date = compare_history(
+                        "name", title, title.altnames_date[-1][0], starting_date, False
+                    )
+                    if comparision_date.name is not None:
+                        title.altnames_date.append(
+                            (comparision_date, comparision_date.name.token)
+                        )
+                    else:
+                        title.altnames_date.append(title.altnames_date[-1])
+
+                    return comparision_date
 
         print("Resolving baronies values")
         for title in cls.RANK[CWTitle.BARONY]:
@@ -334,6 +349,8 @@ class Title:
                 else:
                     title.special_slot.append(title.special_slot[-1])
 
+                    # effect = { set_title_name = c_lower_silesia }
+
             # Check if county capital
             county = cls.ALL[title.parent[0][1].name]
             if title.name == county.capital.name:
@@ -356,6 +373,41 @@ class Title:
 
 Title.initialize()
 Title.after_initialize()
+
+
+def get_altnames(title: Title) -> str:
+    altnames = {}
+    for altname in title.altnames:
+        if altname in CWLoc.ALL:
+            localtname = CWLoc[altname].value
+        else:
+            localtname = CWLoc[altname].value
+        altnames[localtname] = []
+        for namelist in title.altnames[altname]:
+            altnames[localtname].append(CWLoc[namelist].value)
+        altnames[localtname] = ", ".join(altnames[localtname])
+    altnames = "<br>".join([f"{key} ({value})" for key, value in altnames.items()])
+
+    datealtnames = []
+    for index, starting_date in enumerate(STARTING_DATES):
+        if title.altnames_date[index + 1][1] is None:
+            continue
+        if title.altnames_date[index + 1][1] == title.altnames_date[index][1]:
+            continue  # no repeats
+        datealtnames.append(
+            f"{CWLoc[title.altnames_date[index+1][1]].value} ({starting_date.split(".")[0]})"
+        )
+    datealtnames = "<br>".join(datealtnames)
+    if datealtnames:
+        if altnames:
+            return f"{datealtnames}<br>{altnames}"
+        else:
+            return datealtnames
+    else:
+        if altnames:
+            return altnames
+        else:
+            return ""
 
 
 def list_of_couties():
@@ -391,20 +443,8 @@ def list_of_couties():
     for title in Title.RANK[CWTitle.COUNTY]:
         color = title.color.rgb()
 
-        altnames = {}
-        for altname in title.altnames:
-            if altname in CWLoc.ALL:
-                localtname = CWLoc[altname].value
-            else:
-                localtname = CWLoc[altname].value
-            altnames[localtname] = []
-            for namelist in title.altnames[altname]:
-                altnames[localtname].append(CWLoc[namelist].value)
-            altnames[localtname] = ", ".join(altnames[localtname])
-        altnames = "<br>".join([f"{key} ({value})" for key, value in altnames.items()])
-
         specials = []
-        for child_title in title.children[0]:
+        for child_title in title.children[1]:
             barony_specials = [value[1] for value in child_title.special]
             barony_specials += [value[1] for value in child_title.special_slot]
             barony_specials = [
@@ -447,12 +487,128 @@ def list_of_couties():
             CULTURE1066=CWLoc[title.culture[2][1].name].value,
             CULTURE1178=CWLoc[title.culture[3][1].name].value,
             # --
-            ALTNAMES=altnames,
+            ALTNAMES=get_altnames(title),
             ID=title.name,
         )
         wrows.append(wrow)
 
     with open("wikifiles/wikitable_counties.txt", "w", encoding="utf8") as f:
+        content = TABLE.format(ROWS="".join(wrows))
+        f.write(content)
+
+
+def list_of_duchies():
+    # https://ck3.paradoxwikis.com/List_of_duchies
+    TABLE = """{{| class="wikitable sortable" style="text-align: left;"
+! colspan="2" rowspan="3" | Duchy
+! colspan="3" | [[List_of_kingdoms|Kingdom]]
+! colspan="3" | [[List_of_empires|Empire]]
+! rowspan="3" | [[County|Counties]]
+! rowspan="3" | [[Barony|Baronies]]
+! colspan="9" | [[County#Development|Development]]
+! rowspan="3" | [[Special buildings|Special Buildings]]
+! rowspan="3" | Alternative Names
+! rowspan="3" | Capital
+! rowspan="3" | ID
+|-
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! colspan="3" | 867 !! colspan="3" | 1066 !! colspan="3" | 1178
+|-
+! MAX !! AVG !! SUM
+! MAX !! AVG !! SUM
+! MAX !! AVG !! SUM
+{ROWS}
+|}}"""
+
+    TABLEROW = """|- id="{NAME}"
+{{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
+|{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|align="right"|{COUNTIES}||align="right"|{BARONIES}
+|align="right"|{DEV_MAX867}||align="right"|{DEV_AVG867}||align="right"|{DEV_SUM867}
+|align="right"|{DEV_MAX1066}||align="right"|{DEV_AVG1066}||align="right"|{DEV_SUM1066}
+|align="right"|{DEV_MAX1178}||align="right"|{DEV_AVG1178}||align="right"|{DEV_SUM1178}
+|{SPECIAL}||{ALTNAMES}||{CAPITAL}||{ID}
+"""
+
+    def counties_dev(title: Title, index: int):
+        dev = []
+        for child_title in title.children[index]:
+            dev.append(child_title.development[index][1])
+        return dev
+
+    wrows = []
+    for title in Title.RANK[CWTitle.DUCHY]:
+        children = set(sum(title.children, []))
+        if len(children) == 0:
+            # hof titles, adventurer titles, estates, etc
+            continue  # no counties in any starting date
+
+        color = title.color.rgb()
+
+        specials = []
+        for county_title in title.children[1]:  # 867
+            for barony_title in county_title.children[1]:
+                barony_specials = [value[1] for value in barony_title.special]
+                barony_specials += [value[1] for value in barony_title.special_slot]
+                barony_specials = [
+                    building.building_line[0]
+                    for building in barony_specials
+                    if building is not None
+                ]
+                specials += set(barony_specials)
+        specials = "<br>".join(
+            [CWLoc[f"building_{building.name}"].value for building in specials]
+        )
+
+        dev867 = counties_dev(title, 1)
+        dev1066 = counties_dev(title, 2)
+        dev1178 = counties_dev(title, 3)
+
+        # TODO
+        # 1034.5.11 = {
+        # holder = 760
+        # effect = { set_title_name = d_lesser_poland_late }
+        # liege = k_poland
+        # }
+
+        wrow = TABLEROW.format(
+            NAME=CWLoc[title.name].value,
+            RED=color[0],
+            GREEN=color[1],
+            BLUE=color[2],
+            # --
+            KINGDOM867=CWLoc[title.parent[1][1].name].value,
+            KINGDOM1066=CWLoc[title.parent[2][1].name].value,
+            KINGDOM1178=CWLoc[title.parent[3][1].name].value,
+            # --
+            EMPIRE867=CWLoc[title.parent[1][1].parent[1][1].name].value,
+            EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
+            EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
+            # --
+            COUNTIES=len(title.children[0]),
+            BARONIES=sum([len(child.children[0]) for child in title.children[0]]),
+            # --
+            DEV_AVG867=int(sum(dev867) / len(dev867)),
+            DEV_AVG1066=int(sum(dev1066) / len(dev1066)),
+            DEV_AVG1178=int(sum(dev1178) / len(dev1178)),
+            # --
+            DEV_MAX867=int(max(dev867)),
+            DEV_MAX1066=int(max(dev1066)),
+            DEV_MAX1178=int(max(dev1178)),
+            # --
+            DEV_SUM867=int(sum(dev867)),
+            DEV_SUM1066=int(sum(dev1066)),
+            DEV_SUM1178=int(sum(dev1178)),
+            # --
+            SPECIAL=specials,
+            ALTNAMES=get_altnames(title),
+            CAPITAL=CWLoc[title.capital.name].value,
+            ID=title.name,
+        )
+        wrows.append(wrow)
+
+    with open("wikifiles/wikitable_duchies.txt", "w", encoding="utf8") as f:
         content = TABLE.format(ROWS="".join(wrows))
         f.write(content)
 
@@ -464,5 +620,6 @@ def list_of_kingdoms():
 
 
 list_of_couties()
+list_of_duchies()
 
 pass

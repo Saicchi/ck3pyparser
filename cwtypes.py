@@ -1,6 +1,6 @@
 import pathlib
 import copy
-import re
+import math
 from cwparser import *
 
 BASEPATH = pathlib.Path(
@@ -130,14 +130,18 @@ class CWColor(CWItem):
         return self.name if self.name else "NONAME"
 
     def rgb(self) -> tuple:
-        # todo implement this LMAO
         # inputs floats, outputs 0-255
         if self.type in (CWColor.HSV, CWColor.HSV360):
             # https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
+            hue = (
+                self.values[0].token * 360
+                if "." in str(self.values[0].token)
+                else self.values[0].token
+            )
             C = self.values[1].token * self.values[2].token
-            H1 = self.values[0].token / 60
+            H1 = hue / 60
             X = C * (1 - abs((H1 % 2) - 1))
-            M = self.values[1].token - C
+            M = self.values[2].token - C
             if H1 < 1:
                 rgbvalues = (C + M, X + M, 0 + M)
             elif H1 < 2:
@@ -152,11 +156,16 @@ class CWColor(CWItem):
                 rgbvalues = (C + M, 0 + M, X + M)
             else:
                 raise Exception("Invalid HSV value")
+            rgbvalues = [math.ceil(255 * value) for value in rgbvalues]
             return rgbvalues
         else:
-            if self.values[0].token < 1 and self.values[0].token > 0:
-                pass
-            return (self.values[0].token, self.values[1].token, self.values[2].token)
+            values = []
+            for value in self.values:
+                if "." in str(value.token):
+                    values.append(value.token * 255)
+                else:
+                    values.append(value.token)
+            return values
 
     @staticmethod
     def get_color(cwobject: CWObject) -> "CWColor":
@@ -164,6 +173,8 @@ class CWColor(CWItem):
         # color = { 255 255 255 } color = hsv { 0.1 0.1 0.1 }
         cwcolor = CWColor()
         colors = cwobject.get("color", return_value=False)
+        if cwobject.name == "d_northumberland":
+            pass
         if colors is None:
             cwcolor.values = [Token("255"), Token("255"), Token("255")]
             cwcolor.type = CWColor.REGULAR
@@ -171,9 +182,11 @@ class CWColor(CWItem):
 
         if type(colors.values) is Token:
             if colors.values.token == "hsv":
-                cwcolor.type == CWColor.HSV
+                cwcolor.type = CWColor.HSV
             elif colors.values.token == "hsv360":
-                cwcolor.type == CWColor.HSV360
+                cwcolor.type = CWColor.HSV360
+            elif colors.values.token == "rgb":
+                cwcolor.type = CWColor.REGULARV
             else:  # reference
                 return CWColor.ALL[colors.values.token]
             colors = CWObject.ALL[colors.index + 1]
@@ -218,6 +231,8 @@ class CWColor(CWItem):
                     cwitem.type = cls.HSV
                 elif color.values.token == "hsv360":
                     cwitem.type = cls.HSV360
+                elif color.values.token == "rgb":
+                    cwitem.type = CWColor.REGULARV
                 else:
                     cls.error(f"non supported color type: {color.values.token}")
                 index += 1
