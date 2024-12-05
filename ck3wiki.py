@@ -290,17 +290,31 @@ class Title:
 
                     # Alternative Name
                     # 'reset_name = yes' can be ignored for the wiki
-                    comparision_date = compare_history(
-                        "name", title, title.altnames_date[-1][0], starting_date, False
-                    )
-                    if comparision_date.name is not None:
-                        title.altnames_date.append(
-                            (comparision_date, comparision_date.name.token)
-                        )
+                    # Modification from compare_history function
+                    comparision_date = title.altnames_date[-1][0]
+                    datename = None
+                    if title.name == "d_lower_silesia":
+                        pass
+                    for date in title.title_history:
+                        if date > STARTING_DATES[starting_date]:
+                            continue
+                        if date < comparision_date:
+                            continue  # dates defined later have priority
+                        if date.name is not None:
+                            comparision_date = date
+                            datename = comparision_date.name.token
+                        elif date.effect is not None:
+                            if type(date.effect[0]) is not CWObject:
+                                continue
+                            effect = date.effect[0]
+                            if effect.name != "set_title_name":
+                                continue
+                            comparision_date = date
+                            datename = effect.values.token
+                    if datename is not None:
+                        title.altnames_date.append((comparision_date, datename))
                     else:
                         title.altnames_date.append(title.altnames_date[-1])
-
-                    return comparision_date
 
         print("Resolving baronies values")
         for title in cls.RANK[CWTitle.BARONY]:
