@@ -17,6 +17,102 @@ def load_loc(file: pathlib.Path) -> dict:
     return locs
 
 
+class CWCondition:
+    def __init__(self):
+        self.name: str = None
+        self.isand: bool = True  # AND or OR
+        self.negate: bool = False
+        self.limit: CWCondition = None
+        self.values: list[CWCondition] = []
+
+    def __repr__(self):
+        if self.limit:
+            return r"limit={}"
+        if type(self.values) is list:
+            return f"{self.name}=[{len(self.values)}]"
+        return f"{self.name}={self.values}"
+
+    def get(self, name: str) -> "CWCondition":
+        if type(self.values) is not list:
+            return None
+        for item in self.values:
+            if item.name == name:
+                return item
+        return None
+
+    @staticmethod
+    def parse_condition(
+        values: list | CWObject, parent: "CWCondition" = None
+    ) -> "CWCondition":
+        # Work in Progress
+        root = CWCondition()
+        if type(values) is CWObject:
+            root.name = values.name
+            root.values = root.values  # token
+            return root
+
+        for value in values:
+            condition = CWCondition()
+            condition.name = value.name
+            if value.name == "AND":
+                for item in value.values:
+                    condition.values.append(
+                        item
+                        if type(item.values) is Token
+                        else CWCondition.parse_condition(item.values)
+                    )
+            elif value.name == "OR":
+                condition.isand = False
+                for item in value.values:
+                    condition.values.append(
+                        item
+                        if type(item.values) is Token
+                        else CWCondition.parse_condition(item.values)
+                    )
+            elif value.name == "NAND":
+                condition.negate = True
+                for item in value.values:
+                    condition.values.append(
+                        item
+                        if type(item.values) is Token
+                        else CWCondition.parse_condition(item.values)
+                    )
+            elif value.name == "NOR":
+                condition.isand = False
+                condition.negate = True
+                for item in value.values:
+                    condition.values.append(
+                        item
+                        if type(item.values) is Token
+                        else CWCondition.parse_condition(item.values)
+                    )
+            elif value.name == "always":
+                condition.values = value.values.token.lower() == "yes"
+            elif value.name == "limit":
+                # modifies parent
+                if parent.limit is not None:
+                    raise Exception(f"duplicate limit in values {values}")
+                parent.limit = CWCondition()
+                for item in value.values:
+                    root.limit.values.append(
+                        item
+                        if type(item.values) is Token
+                        else CWCondition.parse_condition(item.values)
+                    )
+            else:
+                if type(value.values) is list:
+                    for item in value.values:
+                        condition.values.append(
+                            item
+                            if type(item.values) is Token
+                            else CWCondition.parse_condition(item.values)
+                        )
+                else:
+                    condition.values = value.values
+            root.values.append(condition)
+        return root
+
+
 class CWItem:
     PATH = BASEPATH
     PATH_LOC = BASEPATH
@@ -1075,18 +1171,17 @@ class CWCulturalNames(CWItem):
 
 
 def load_items():
-    pass
+    CWColor.load_files()
+    CWTitle.load_files()
+    CWBuilding.load_files()
+    CWTradition.load_files()
+    CWCulture.load_files()
+    CWHolySite.load_files()
+    CWReligionFamily.load_files()
+    CWReligion.load_files()
+    CWHistoryProvince.load_files()
+    CWHistoryTitle.load_files()
+    CWCulturalNames.load_files()
 
 
-CWColor.load_files()
-CWTitle.load_files()
-CWBuilding.load_files()
-CWTradition.load_files()
-CWCulture.load_files()
-CWHolySite.load_files()
-CWReligionFamily.load_files()
-CWReligion.load_files()
-CWHistoryProvince.load_files()
-CWHistoryTitle.load_files()
-CWCulturalNames.load_files()
 pass

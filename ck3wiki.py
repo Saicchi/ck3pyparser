@@ -86,12 +86,6 @@ def map_extra_special() -> dict:
 
     return mapping
 
-
-# load everything, fuck it we ball
-# ENGLISH_LOC = BASEPATH.joinpath("localization/english")
-# for file in ENGLISH_LOC.rglob("*.yml"):
-# load_loc(file)
-
 EXTRA_SPECIAL_MAPPING = map_extra_special()
 
 
@@ -123,6 +117,7 @@ class Title:
         self.special: list[tuple[CWHistoryDate, str]] = []
         self.special_slot: list[tuple[CWHistoryDate, str]] = []
         self.province_history: list[CWHistoryDate] = []
+        self.can_create: CWObject = None
 
     def __repr__(self) -> str:
         return self.name
@@ -176,6 +171,8 @@ class Title:
                 title.title_history = CWHistoryTitle.ALL[title.name].dates
             if title.province in CWHistoryProvince.ALL:
                 title.province_history = CWHistoryProvince.ALL[title.province].dates
+
+            title.can_create = cwtitle.can_create
 
     @classmethod
     def after_initialize(cls):
@@ -515,7 +512,7 @@ def list_of_duchies():
 ! colspan="2" rowspan="2" | Duchy
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
-! rowspan="2" | [[County|Counties]]
+! rowspan="2" | [[List_of_counties|Counties]]
 ! rowspan="2" | [[Barony|Baronies]]
 ! colspan="3" | [[County#Development|Average Development]]
 ! rowspan="2" | [[Special buildings|Special Buildings]]
@@ -571,13 +568,6 @@ def list_of_duchies():
         dev1066 = counties_dev(title, 2)
         dev1178 = counties_dev(title, 3)
 
-        # TODO
-        # 1034.5.11 = {
-        # holder = 760
-        # effect = { set_title_name = d_lesser_poland_late }
-        # liege = k_poland
-        # }
-
         wrow = TABLEROW.format(
             NAME=CWLoc[title.name].value,
             RED=color[0],
@@ -613,6 +603,75 @@ def list_of_duchies():
 
 def list_of_kingdoms():
     # https://ck3.paradoxwikis.com/List_of_kingdoms
+    TABLE = """{{| class="wikitable sortable" style="text-align: left;"
+! colspan="2" rowspan="2" | Kingdom
+! colspan="3" | [[List_of_empires|Empire]]
+! colspan="3" | [[List_of_duchies|Duchies]]
+! rowspan="2" | [[List_of_counties|Counties]]
+! rowspan="2" | Special Requirements
+! rowspan="2" | AI Requirements
+! rowspan="2" | Alternative Names
+! rowspan="2" | Capital
+! rowspan="2" | ID
+|-
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+{ROWS}
+|}}"""
+
+    TABLEROW = """|- id="{NAME}"
+{{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
+|{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|align="right"|{DUCHY867}||align="right"|{DUCHY1066}|align="right"|{DUCHY1178}
+|align="right"|{COUNTY867}||align="right"|{COUNTY1066}||align="right"|{COUNTY1178}
+|{SPECIAL_REQ}||{AI_REQ}||{ALTNAMES}||{CAPITAL}||{ID}
+"""
+
+    def get_name(title: Title | None) -> str:
+        if title is None:
+            return ""
+        return CWLoc[title.name].value
+
+    wrows = []
+    for title in Title.RANK[CWTitle.KINGDOM]:
+        children = set(sum(title.children, []))
+        if len(children) == 0:
+            # hof titles, formable, etc
+            continue  # no duchies in any starting date
+
+        color = title.color.rgb()
+
+        wrow = TABLEROW.format(
+            NAME=CWLoc[title.name].value,
+            RED=color[0],
+            GREEN=color[1],
+            BLUE=color[2],
+            # --
+            EMPIRE867=get_name(title.parent[1][1]),
+            EMPIRE1066=get_name(title.parent[2][1]),
+            EMPIRE1178=get_name(title.parent[3][1]),
+            # --
+            DUCHY867=len(title.children[1]),
+            DUCHY1066=len(title.children[2]),
+            DUCHY1178=len(title.children[3]),
+            # --
+            COUNTY867=sum([len(duchy.children[1]) for duchy in title.children[1]]),
+            COUNTY1066=sum([len(duchy.children[2]) for duchy in title.children[2]]),
+            COUNTY1178=sum([len(duchy.children[3]) for duchy in title.children[3]]),
+            # --
+            SPECIAL_REQ="TEST",
+            AI_REQ="AI TEST",
+            # --
+            ALTNAMES=get_altnames(title),
+            CAPITAL=CWLoc[title.capital.name].value,
+            ID="",
+        )
+        wrows.append(wrow)
+
+    with open("wikifiles/wikitable_kingdoms.txt", "w", encoding="utf8") as f:
+        content = TABLE.format(ROWS="".join(wrows))
+        f.write(content)
 
     pass
 

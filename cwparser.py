@@ -213,7 +213,8 @@ class CWObject:
             return default_value
         if len(indexes) > 1 and not allow_multiple:
             raise Exception(
-                f"Duplicate '{name}' Values: {'\n'.join([repr(self.values[index]) for index in indexes])}"
+                f"Duplicate '{name}' Values:"
+                + {"\n".join([repr(self.values[index]) for index in indexes])}
             )
         if allow_multiple:
             # sometimes values are duplicated, even though they should not be!!!
