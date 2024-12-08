@@ -52,6 +52,8 @@ EXTRA_SPECIAL = [
     ("title", "b_bidar", "generic_university"),
 ]
 
+load_items()
+
 
 def map_extra_special() -> dict:
     mapping = {}
@@ -86,6 +88,7 @@ def map_extra_special() -> dict:
 
     return mapping
 
+
 EXTRA_SPECIAL_MAPPING = map_extra_special()
 
 
@@ -105,7 +108,7 @@ class Title:
         self.rank: str = None
         self.color: CWColor = None
         self.province: int = None
-        self.capital: CWTitle = None
+        self.capital: list[tuple[CWHistoryDate, Title]] = []
         self.altnames: dict[str, list[str]] = {}
         self.altnames_date: list[tuple[CWHistoryDate, str]] = []
         self.parent: list[tuple[CWHistoryDate, Title]] = []
@@ -152,13 +155,13 @@ class Title:
             title.faith.append((stubdate, None))
             title.special.append((stubdate, None))
             title.special_slot.append((stubdate, None))
+            title.capital.append((stubdate, cwtitle.capital))
 
             title.color = cwtitle.color
             title.province = cwtitle.province
             if title.province:
                 title.province = cwtitle.province.token
 
-            title.capital = cwtitle.capital
             for item in cwtitle.cultural_names:
                 namelist = item.name
                 value = item.values.token
@@ -252,8 +255,11 @@ class Title:
             if cls.RANKS[rank] == CWTitle.EMPIRE:
                 continue  # barony has no capital
             for title in cls.RANK[cls.RANKS[rank]]:
-                if title.capital is not None:
-                    title.capital = cls.ALL[title.capital.name]
+                if title.capital[0][1] is not None:
+                    title.capital[0] = (
+                        title.capital[0][0],
+                        cls.ALL[title.capital[0][1].name],
+                    )
 
         print("Resolving development and alternative date names")
         # Resolve development, top to bottom
@@ -311,6 +317,31 @@ class Title:
                     else:
                         title.altnames_date.append(title.altnames_date[-1])
 
+                    # New Capital
+                    # effect set_capital_county
+                    comparision_date = title.capital[-1][0]
+                    datecapital = None
+                    for date in title.title_history:
+                        if date > STARTING_DATES[starting_date]:
+                            continue
+                        if date < comparision_date:
+                            continue  # dates defined later have priority
+                        if date.effect is not None:
+                            if type(date.effect[0]) is not CWObject:
+                                continue
+                            effect = date.effect[0]
+                            if effect.name != "set_capital_county":
+                                continue
+                            comparision_date = date
+                            datecapital = effect.values.token
+                            if "title:" in datecapital:
+                                datecapital = datecapital[len("title:") :]
+                            datecapital = cls.ALL[datecapital]
+                    if datecapital is not None:
+                        title.capital.append((comparision_date, datecapital))
+                    else:
+                        title.capital.append(title.capital[-1])
+
         print("Resolving baronies values")
         for title in cls.RANK[CWTitle.BARONY]:
             for starting_date in STARTING_DATES:
@@ -362,7 +393,7 @@ class Title:
 
             # Check if county capital
             county = cls.ALL[title.parent[0][1].name]
-            if title.name == county.capital.name:
+            if title.name == county.capital[0][1].name:
                 county.culture = title.culture
                 county.faith = title.faith
 
@@ -404,7 +435,7 @@ def get_altnames(title: Title) -> str:
         if title.altnames_date[index + 1][1] == title.altnames_date[index][1]:
             continue  # no repeats
         datealtnames.append(
-            f"{CWLoc[title.altnames_date[index+1][1]].value} ({starting_date.split(".")[0]})"
+            f"{CWLoc[title.altnames_date[index+1][1]].value} ({starting_date.split('.')[0]})"
         )
     datealtnames = "<br>".join(datealtnames)
     if datealtnames:
@@ -417,6 +448,25 @@ def get_altnames(title: Title) -> str:
             return altnames
         else:
             return ""
+
+
+def get_capital(title: Title) -> str:
+    capitals = [
+        None if title.capital[0][1] is None else CWLoc[title.capital[0][1].name].value
+    ]
+    for index, starting_date in enumerate(STARTING_DATES):
+        if title.capital[index + 1][1] is None:
+            continue
+        if title.capital[index + 1][1] == title.capital[index][1]:
+            continue  # no repeats
+
+        capital = title.capital[index + 1][1]
+        if capital is None:
+            capstr = ""
+        else:
+            capstr = f"{CWLoc[capital.name].value} ({starting_date.split('.')[0]})"
+        capitals.append(capstr)
+    return "<br>".join([capital for capital in capitals if capital is not None])
 
 
 def list_of_couties():
@@ -591,7 +641,7 @@ def list_of_duchies():
             # --
             SPECIAL=specials,
             ALTNAMES=get_altnames(title),
-            CAPITAL=CWLoc[title.capital.name].value,
+            CAPITAL=get_capital(title),
             ID=title.name,
         )
         wrows.append(wrow)
@@ -607,7 +657,7 @@ def list_of_kingdoms():
 ! colspan="2" rowspan="2" | Kingdom
 ! colspan="3" | [[List_of_empires|Empire]]
 ! colspan="3" | [[List_of_duchies|Duchies]]
-! rowspan="2" | [[List_of_counties|Counties]]
+! colspan="3" | [[List_of_counties|Counties]]
 ! rowspan="2" | Special Requirements
 ! rowspan="2" | AI Requirements
 ! rowspan="2" | Alternative Names
@@ -623,9 +673,10 @@ def list_of_kingdoms():
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
 |{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
-|align="right"|{DUCHY867}||align="right"|{DUCHY1066}|align="right"|{DUCHY1178}
+|align="right"|{DUCHY867}||align="right"|{DUCHY1066}||align="right"|{DUCHY1178}
 |align="right"|{COUNTY867}||align="right"|{COUNTY1066}||align="right"|{COUNTY1178}
-|{SPECIAL_REQ}||{AI_REQ}||{ALTNAMES}||{CAPITAL}||{ID}
+|{SPECIAL_REQ}||{AI_REQ}
+|{ALTNAMES}||{CAPITAL}||{ID}
 """
 
     def get_name(title: Title | None) -> str:
@@ -633,12 +684,54 @@ def list_of_kingdoms():
             return ""
         return CWLoc[title.name].value
 
+    REQS = {
+        "k_jerusalem": "Christian Religion",
+        "k_rum": "{{{{icon|decision}}}}[[Decisions#Form the Sultanate of Rum|Form the Sultanate of Rum]]",
+        "k_aragon": "{{{{icon|decision}}}}[[Decisions#Found the Kingdom of Aragon|Found the Kingdom of Aragon]]",
+        "k_leon": "Created by 'Splitting the Crown' event in 867",
+        "k_asturias": "Destroyed by 'Splitting the Crown' event in 867",
+        "k_portugal": "{{{{icon|decision}}}}[[Decisions#Found Portugal|Found Portugal]]",
+    }
+
+    AI_REQS = {
+        "k_wales": "Brythonic Heritage",
+        "k_ireland": "Goidelic Heritage",
+        "k_saxony": "Old Saxon or Anglo Saxon Culture",
+        "k_frisia": "Frisian or Dutch Culture",
+        "k_east_francia": "Holy Roman Empire does not exist",
+        "k_cyprus": "Christian Religion",
+        "k_italy": "Christian Religion",
+        "k_romagna": "Christian Religion",
+        "k_sapmi": "Balto-Finnic Heritage",
+        "k_finland": "Balto-Finnic Heritage",
+        "k_pomerania": "Pomeranian Culture",
+        "k_esthonia": "Balto-Finnic Heritage",
+        "k_aquitaine": "Does not hold Kingdom of France",
+        "k_brittany": "Brythonic Heritage",
+        "k_andalusia": "Arabic Heritage",
+        "k_castille": "Christian Religion",
+        "k_aragon": "Christian Religion",
+        "k_navarra": "Christian Religion",
+        "k_asturias": "Christian Religion",
+        "k_leon": "Christian Religion",
+        "k_spanish_galicia": "Christian Religion",
+        "k_portugal": "Christian Religion",
+    }
+
+    missing_reqs = []
     wrows = []
     for title in Title.RANK[CWTitle.KINGDOM]:
-        children = set(sum(title.children, []))
+        # k_saxony has land before 867, but not after
+        children = set(sum(title.children[1:], []))
         if len(children) == 0:
             # hof titles, formable, etc
             continue  # no duchies in any starting date
+
+        if title.can_create is not None:
+            if title.name not in REQS and title.name not in AI_REQS:
+                missing_reqs.append(title.name)
+        special_reqs = REQS[title.name] if title.name in REQS else ""
+        ai_reqs = AI_REQS[title.name] if title.name in AI_REQS else ""
 
         color = title.color.rgb()
 
@@ -660,14 +753,20 @@ def list_of_kingdoms():
             COUNTY1066=sum([len(duchy.children[2]) for duchy in title.children[2]]),
             COUNTY1178=sum([len(duchy.children[3]) for duchy in title.children[3]]),
             # --
-            SPECIAL_REQ="TEST",
-            AI_REQ="AI TEST",
+            # Special Req can not be calculated automatically yet, use prebuilt values
+            SPECIAL_REQ=special_reqs,
+            AI_REQ=ai_reqs,
             # --
             ALTNAMES=get_altnames(title),
-            CAPITAL=CWLoc[title.capital.name].value,
-            ID="",
+            CAPITAL=get_capital(title),
+            ID=title.name,
         )
         wrows.append(wrow)
+
+    if len(missing_reqs) > 0:
+        print("Kingdom titles with missing requirements")
+        print(missing_reqs)
+        raise Exception()
 
     with open("wikifiles/wikitable_kingdoms.txt", "w", encoding="utf8") as f:
         content = TABLE.format(ROWS="".join(wrows))
@@ -678,5 +777,6 @@ def list_of_kingdoms():
 
 list_of_couties()
 list_of_duchies()
+list_of_kingdoms()
 
 pass

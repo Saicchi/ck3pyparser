@@ -490,7 +490,7 @@ class CWTitle(CWItem):
         cwitem.ai_primary_priority = cwobject.get(
             "ai_primary_priority", default_value=cwitem.ai_primary_priority
         )
-        cwitem.can_create = cwobject.get("can_create", default_value=cwitem.can_create)
+        cwitem.can_create = cwobject.get("can_create")
         cwitem.can_create_on_partition = cwobject.get(
             "can_create_on_partition", default_value=cwitem.can_create_on_partition
         )
