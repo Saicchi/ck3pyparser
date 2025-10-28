@@ -4,7 +4,7 @@ import math
 from cwparser import *
 
 BASEPATH = pathlib.Path(
-    r"C:/Program Files (x86)/Steam/steamapps/common/Crusader Kings III/game"
+    r"game"
 )
 
 
@@ -140,7 +140,7 @@ class CWItem:
         if cls.PATH.is_file():
             files = [cls.PATH]
         else:
-            files = cls.PATH.glob("*.txt")
+            files = sorted(cls.PATH.glob("*.txt"))
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
             tokens = tokenize(read_file(file), file)
@@ -154,7 +154,7 @@ class CWItem:
     def load_localization(cls):
         if cls.PATH_LOC == BASEPATH:
             return  # do not load all files!!!
-        if type(cls.PATH_LOC) is list:
+        if type(cls.PATH_LOC) in (list, map):
             files = cls.PATH_LOC
         elif cls.PATH_LOC.is_file():
             files = [cls.PATH_LOC]
@@ -163,6 +163,10 @@ class CWItem:
         for file in files:
             print(f"<{cls.__name__}> Reading: {file.relative_to(BASEPATH)}")
             _ = parse_file_yml(read_file(file))  # CWLoc init handles it
+
+    @classmethod
+    def warning(cls, message: str):
+        print(f"@@@@@@@@@ <{cls.__name__}> {message}")
 
     @classmethod
     def error(cls, message: str):
@@ -289,7 +293,8 @@ class CWColor(CWItem):
             cwcolor.error("amount of values in colors incorect")
         for item in colors.values[0].values:
             if item.type != Token.NUMBER:
-                cwcolor.error(f"Token not a number: {repr(item)}>{item.filename}")
+                cwcolor.error(
+                    f"Token not a number: {repr(item)}>{item.filename}")
             cwcolor.values.append(item)
         return cwcolor
 
@@ -328,7 +333,8 @@ class CWColor(CWItem):
                 elif color.values.token == "rgb":
                     cwitem.type = CWColor.REGULARV
                 else:
-                    cls.error(f"non supported color type: {color.values.token}")
+                    cls.error(
+                        f"non supported color type: {color.values.token}")
                 index += 1
                 color = cwobject.values[index]
             else:
@@ -339,13 +345,15 @@ class CWColor(CWItem):
                 cls.error("amount of values in colors incorect")
             for item in color.values[0].values:
                 if item.type != Token.NUMBER:
-                    cls.error(f"token not a number: {repr(item)}>{item.filename}")
+                    cls.error(
+                        f"token not a number: {repr(item)}>{item.filename}")
                 cwitem.values.append(item)
 
 
 class CWTitle(CWItem):
     PATH = CWItem.PATH.joinpath("common/landed_titles")
-    PATH_LOC = CWItem.PATH.joinpath("localization/english/titles_l_english.yml")
+    PATH_LOC = CWItem.PATH.joinpath(
+        "localization/english/titles_l_english.yml")
     ALL: dict[str, "CWTitle"] = {}
     PROVINCES: dict[int, "CWTitle"] = {}
 
@@ -355,9 +363,11 @@ class CWTitle(CWItem):
     DUCHY = "DUCHY"
     KINGDOM = "KINGDOM"
     EMPIRE = "EMPIRE"
+    HEGEMONY = "HEGEMONY"
 
     # Rank Prefix
     RANKS = {
+        "h_": HEGEMONY,
         "e_": EMPIRE,
         "k_": KINGDOM,
         "d_": DUCHY,
@@ -438,14 +448,16 @@ class CWTitle(CWItem):
         if parent:
             cwitem.parents = parent.parents.copy()
             if parent in cwitem.parents:
-                cls.error(f"{parent.name} parent duplicate for child {cwitem.name}")
+                cls.error(
+                    f"{parent.name} parent duplicate for child {cwitem.name}")
             cwitem.parents.append(parent)
             if cwitem in parent.children:
-                cls.error(f"{cwitem.name} child duplicate for parent {parent.name}")
+                cls.error(
+                    f"{cwitem.name} child duplicate for parent {parent.name}")
             parent.children.append(cwitem)
 
         if cwitem.name in cls.ALL:
-            cls.error(f"Duplicate Title: {cwitem.name}")
+            cls.warning(f"Duplicate Title: {cwitem.name}")
         cls.ALL[cwitem.name] = cwitem
 
         cwitem.color = CWColor.get_color(cwobject)
@@ -459,7 +471,8 @@ class CWTitle(CWItem):
         cwitem.no_automatic_claims = cwobject.get(
             "no_automatic_claims", default_value=Token("no")
         )
-        cwitem.definite_form = cwobject.get("definite_form", default_value=Token("no"))
+        cwitem.definite_form = cwobject.get(
+            "definite_form", default_value=Token("no"))
         cwitem.always_follows_primary_heir = cwobject.get(
             "always_follows_primary_heir", default_value=Token("no")
         )
@@ -483,7 +496,8 @@ class CWTitle(CWItem):
         cwitem.de_jure_drift_disabled = cwobject.get(
             "de_jure_drift_disabled", default_value=Token("no")
         )
-        cwitem.male_names = cwobject.get("male_names", default_value=cwitem.male_names)
+        cwitem.male_names = cwobject.get(
+            "male_names", default_value=cwitem.male_names)
         cwitem.female_names = cwobject.get(
             "female_names", default_value=cwitem.female_names
         )
@@ -511,8 +525,10 @@ class CWBuilding(CWItem):
     PATH = CWItem.PATH.joinpath("common/buildings")
     PATH_LOC = [
         BASEPATH.joinpath("localization/english/buildings_l_english.yml"),
-        BASEPATH.joinpath("localization/english/dlc/ce1/ce1_buildings_l_english.yml"),
-        BASEPATH.joinpath("localization/english/dlc/fp3/dlc_fp3_culture_l_english.yml"),
+        BASEPATH.joinpath(
+            "localization/english/dlc/ce1/ce1_buildings_l_english.yml"),
+        BASEPATH.joinpath(
+            "localization/english/dlc/fp3/dlc_fp3_culture_l_english.yml"),
     ]
     ALL: dict[str, "CWBuilding"] = {}
 
@@ -617,7 +633,6 @@ class CWTradition(CWItem):
         self.raw: CWObject = None
         self.name: str = None
         self.category: Token = None
-        self.layers: list[CWObject] = []
         self.is_shown: CWObject = None
         self.can_pick: CWObject = None
         self.parameters: list[CWObject] = []
@@ -647,23 +662,25 @@ class CWTradition(CWItem):
 
         cwitem.category = cwobject.get("category")
         if cwitem.category is None:
-            cls.error("null category")
-
-        cwitem.layers = cwobject.get("category")
-        if cwitem.layers is None:
-            cls.error("null layers")
+            # TODO: Revert to error after bugfix
+            # https://forum.paradoxplaza.com/forum/threads/art-of-war-tradition-does-not-show-in-the-list-of-available-traditions-for-chinese-heritage-culture.1864858/
+            cls.warning("null category")
 
         cwitem.is_shown = cwobject.get("is_shown")
         cwitem.can_pick = cwobject.get("can_pick")
 
         cwitem.parameters = cwobject.get("parameters", default_value=[])
-        cwitem.character_modifier = cwobject.get("character_modifier", default_value=[])
-        cwitem.province_modifier = cwobject.get("province_modifier", default_value=[])
-        cwitem.county_modifier = cwobject.get("county_modifier", default_value=[])
+        cwitem.character_modifier = cwobject.get(
+            "character_modifier", default_value=[])
+        cwitem.province_modifier = cwobject.get(
+            "province_modifier", default_value=[])
+        cwitem.county_modifier = cwobject.get(
+            "county_modifier", default_value=[])
         cwitem.doctrine_character_modifier = cwobject.get(
             "doctrine_character_modifier", allow_multiple=True, default_value=[]
         )
-        cwitem.culture_modifier = cwobject.get("culture_modifier", default_value=[])
+        cwitem.culture_modifier = cwobject.get(
+            "culture_modifier", default_value=[])
 
         cwitem.cost = cwobject.get("cost")
         cwitem.ai_will_do = cwobject.get("ai_will_do")
@@ -877,7 +894,8 @@ class CWReligion(CWItem):
 
         cwitem.family = CWReligionFamily.ALL[cwobject.get("family").token]
 
-        cwitem.pagan_roots = cwobject.get("pagan_roots", default_value=Token("no"))
+        cwitem.pagan_roots = cwobject.get(
+            "pagan_roots", default_value=Token("no"))
         cwitem.doctrine = cwobject.get(
             "doctrine", allow_multiple=True, default_value=[]
         )
@@ -963,7 +981,8 @@ class CWHistoryDate:
                 raise Exception(f"cwobject not a date {repr(cwobject)}")
             cwitem.date = cwobject.token
         splitdate = [int(date) for date in cwitem.date.token.split(".")]
-        cwitem.datenum = 10000 * splitdate[0] + 100 * splitdate[1] + splitdate[2]
+        cwitem.datenum = 10000 * splitdate[0] + \
+            100 * splitdate[1] + splitdate[2]
 
         # Generic
         cwitem.effect = cwobject.get("effect", allow_multiple=True)
@@ -997,7 +1016,8 @@ class CWHistoryDate:
                 -1
             ].values.token
 
-        cwitem.special_building = cwobject.get("special_building", allow_multiple=True)
+        cwitem.special_building = cwobject.get(
+            "special_building", allow_multiple=True)
         if type(cwitem.special_building) is list:
             cwitem.special_building = CWBuilding.ALL[
                 cwitem.special_building[-1].values.token
@@ -1020,10 +1040,11 @@ class CWHistoryDate:
                 cwitem.de_jure_liege = CWTitle.ALL[cwitem.de_jure_liege.token]
 
         cwitem.government = cwobject.get("government")
-        cwitem.effect = cwobject.get("effect")
+        cwitem.effect = cwobject.get("effect", allow_multiple=True)
         cwitem.name = cwobject.get("name")
         cwitem.liege = cwobject.get("liege")
-        cwitem.change_development_level = cwobject.get("change_development_level")
+        cwitem.change_development_level = cwobject.get(
+            "change_development_level")
         cwitem.insert_title_history = cwobject.get("insert_title_history")
         cwitem.reset_name = cwobject.get("reset_name")
         cwitem.succession_laws = cwobject.get("succession_laws")
@@ -1147,7 +1168,8 @@ class CWHistoryTitle(CWItem):
             cls.ALL[cwitem.name] = cwitem
             cwitem.title = CWTitle.ALL[cwobject.token.token]
 
-        cwitem.dates.append(CWHistoryDate.handle_object(cwobject, Token("1.1.1")))
+        cwitem.dates.append(
+            CWHistoryDate.handle_object(cwobject, Token("1.1.1")))
 
         for value in cwobject.values:
             if value.token.type not in (Token.NUMBER, Token.DATE):
@@ -1162,8 +1184,25 @@ class CWCulturalNames(CWItem):
         BASEPATH.joinpath(
             "localization/english/culture/culture_name_lists_l_english.yml"
         ),
-        BASEPATH.joinpath("localization/english/titles_cultural_names_l_english.yml"),
+        BASEPATH.joinpath(
+            "localization/english/titles_cultural_names_l_english.yml"),
     ]
+
+    @classmethod
+    def load_files(cls):
+        cls.load_localization()
+
+
+class CWDynastyNames(CWItem):
+    PATH_LOC = BASEPATH.joinpath("localization/english/dynasties")
+
+    @classmethod
+    def load_files(cls):
+        cls.load_localization()
+
+
+class CWDLCLocs(CWItem):
+    PATH_LOC = BASEPATH.joinpath("localization/english/dlc").glob("**/*.yml")
 
     @classmethod
     def load_files(cls):
@@ -1182,6 +1221,8 @@ def load_items():
     CWHistoryProvince.load_files()
     CWHistoryTitle.load_files()
     CWCulturalNames.load_files()
+    CWDynastyNames.load_files()
+    CWDLCLocs.load_files()
 
 
 pass

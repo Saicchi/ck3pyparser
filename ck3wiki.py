@@ -177,6 +177,7 @@ class Title:
         CWTitle.DUCHY: [],
         CWTitle.KINGDOM: [],
         CWTitle.EMPIRE: [],
+        CWTitle.HEGEMONY: [],
     }
     RANKS = list(RANK.keys())
 
@@ -552,13 +553,14 @@ def get_capital(title: Title) -> str:
     return "<br>".join([capital for capital in capitals if capital is not None])
 
 
-def list_of_couties():
+def list_of_counties():
     # https://ck3.paradoxwikis.com/List_of_counties
     TABLE = """{{| class="wikitable sortable" style="text-align: left;"
 ! colspan="2" rowspan="2" | County
 ! rowspan="2" | [[List_of_duchies|Duchy]]
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
+! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! rowspan="2" | [[Barony|Baronies]]
 ! colspan="3" | [[Development]]
 ! rowspan="2" | [[Special buildings|Special Buildings]]
@@ -572,19 +574,33 @@ def list_of_couties():
 ! 867 !! 1066 !! 1178
 ! 867 !! 1066 !! 1178
 ! 867 !! 1066 !! 1178
+! 867 !! 1066 !! 1178
 {ROWS}
 |}}"""
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{DUCHY}||{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|{DUCHY}||{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}||{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}
 |align="right"|{BARONIES}||align="right"|{DEVELOPMENT867}||align="right"|{DEVELOPMENT1066}||align="right"|{DEVELOPMENT1178}
 |{SPECIAL}||{CULTURE867}||{CULTURE1066}||{CULTURE1178}||{RELIGION867}||{RELIGION1066}||{RELIGION1178}||{ALTNAMES}||{ID}
 """
+    total_counties = 0
+
+    def hegemony_name(county: Title, yearindex: int):
+        hegemony = title.parent[yearindex][1].parent[yearindex][1].parent[yearindex][1].parent[yearindex][1]
+        if hegemony:
+            return CWLoc[hegemony.name].value
+        return ""
 
     wrows = []
     for title in Title.RANK[CWTitle.COUNTY]:
-        color = title.color.rgb()
+        children = set(sum(title.children, []))
+        if len(children) == 0:
+            # all under heaven noble families
+            continue  # no baronies in any starting date
 
+        total_counties += 1
+
+        color = title.color.rgb()
         specials = []
         for child_title in title.children[1]:
             barony_specials = [value[1] for value in child_title.special]
@@ -618,6 +634,10 @@ def list_of_couties():
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3]
                              [1].parent[3][1].name].value,
             # --
+            HEGEMONY867=hegemony_name(title, 1),
+            HEGEMONY1066=hegemony_name(title, 2),
+            HEGEMONY1178=hegemony_name(title, 3),
+            # --
             BARONIES=len(title.children[1]),
             DEVELOPMENT867=title.development[1][1],
             DEVELOPMENT1066=title.development[2][1],
@@ -640,6 +660,7 @@ def list_of_couties():
     with open("wikifiles/wikitable_counties.txt", "w", encoding="utf8") as f:
         content = TABLE.format(ROWS="".join(wrows))
         f.write(content)
+    print(total_counties, "counties")
 
 
 def list_of_duchies():
@@ -648,6 +669,7 @@ def list_of_duchies():
 ! colspan="2" rowspan="2" | Duchy
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
+! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! rowspan="2" | [[List_of_counties|Counties]]
 ! rowspan="2" | [[Barony|Baronies]]
 ! colspan="3" | [[County#Development|Average Development]]
@@ -659,16 +681,25 @@ def list_of_duchies():
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 {ROWS}
 |}}"""
 
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}||{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}
 |align="right"|{COUNTIES}||align="right"|{BARONIES}
 |align="right"|{DEV_AVG867}||align="right"|{DEV_AVG1066}||align="right"|{DEV_AVG1178}
 |{SPECIAL}||{ALTNAMES}||{CAPITAL}||{ID}
 """
+
+    total_duchies = 0
+
+    def hegemony_name(county: Title, yearindex: int):
+        hegemony = title.parent[yearindex][1].parent[yearindex][1].parent[yearindex][1]
+        if hegemony:
+            return CWLoc[hegemony.name].value
+        return ""
 
     def counties_dev(title: Title, index: int):
         dev = []
@@ -682,6 +713,8 @@ def list_of_duchies():
         if len(children) == 0:
             # hof titles, adventurer titles, estates, etc
             continue  # no counties in any starting date
+
+        total_duchies += 1
 
         color = title.color.rgb()
 
@@ -719,6 +752,10 @@ def list_of_duchies():
             EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
+            HEGEMONY867=hegemony_name(title, 1),
+            HEGEMONY1066=hegemony_name(title, 2),
+            HEGEMONY1178=hegemony_name(title, 3),
+            # --
             COUNTIES=len(title.children[1]),
             BARONIES=sum([len(child.children[1])
                          for child in title.children[1]]),
@@ -737,6 +774,7 @@ def list_of_duchies():
     with open("wikifiles/wikitable_duchies.txt", "w", encoding="utf8") as f:
         content = TABLE.format(ROWS="".join(wrows))
         f.write(content)
+    print(total_duchies, "duchies")
 
 
 def list_of_kingdoms():
@@ -866,8 +904,8 @@ def list_of_kingdoms():
     pass
 
 
-list_of_couties()
+list_of_counties()
 list_of_duchies()
-list_of_kingdoms()
+# list_of_kingdoms()
 
 pass
