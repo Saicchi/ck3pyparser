@@ -167,7 +167,8 @@ class Title:
                 value = item.values.token
                 if value not in title.altnames:
                     title.altnames[value] = []
-                if namelist not in title.altnames[value]:  # set messes up order
+                # set messes up order
+                if namelist not in title.altnames[value]:
                     title.altnames[value].append(namelist)
 
             if title.name in CWHistoryTitle.ALL:
@@ -313,7 +314,8 @@ class Title:
                             comparision_date = date
                             datename = effect.values.token
                     if datename is not None:
-                        title.altnames_date.append((comparision_date, datename))
+                        title.altnames_date.append(
+                            (comparision_date, datename))
                     else:
                         title.altnames_date.append(title.altnames_date[-1])
 
@@ -335,7 +337,7 @@ class Title:
                             comparision_date = date
                             datecapital = effect.values.token
                             if "title:" in datecapital:
-                                datecapital = datecapital[len("title:") :]
+                                datecapital = datecapital[len("title:"):]
                             datecapital = cls.ALL[datecapital]
                     if datecapital is not None:
                         title.capital.append((comparision_date, datecapital))
@@ -350,7 +352,8 @@ class Title:
                     "culture", title, title.culture[-1][0], starting_date, True
                 )
                 if comparision_date.culture is not None:
-                    title.culture.append((comparision_date, comparision_date.culture))
+                    title.culture.append(
+                        (comparision_date, comparision_date.culture))
                 else:
                     title.culture.append(title.culture[-1])
 
@@ -359,7 +362,8 @@ class Title:
                     "religion", title, title.faith[-1][0], starting_date, True
                 )
                 if comparision_date.religion is not None:
-                    title.faith.append((comparision_date, comparision_date.religion))
+                    title.faith.append(
+                        (comparision_date, comparision_date.religion))
                 else:
                     title.faith.append(title.faith[-1])
 
@@ -408,7 +412,8 @@ class Title:
                         EXTRA_SPECIAL_MAPPING[title.name][0]
                     ]  # first one wins
                     for index in range(len(STARTING_DATES) + 1):
-                        title.special[index] = (title.special[index][0], building)
+                        title.special[index] = (
+                            title.special[index][0], building)
 
 
 Title.initialize()
@@ -426,7 +431,8 @@ def get_altnames(title: Title) -> str:
         for namelist in title.altnames[altname]:
             altnames[localtname].append(CWLoc[namelist].value)
         altnames[localtname] = ", ".join(altnames[localtname])
-    altnames = "<br>".join([f"{key} ({value})" for key, value in altnames.items()])
+    altnames = "<br>".join(
+        [f"{key} ({value})" for key, value in altnames.items()])
 
     datealtnames = []
     for index, starting_date in enumerate(STARTING_DATES):
@@ -528,9 +534,12 @@ def list_of_couties():
             KINGDOM1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
             KINGDOM1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
-            EMPIRE867=CWLoc[title.parent[1][1].parent[1][1].parent[1][1].name].value,
-            EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].parent[2][1].name].value,
-            EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].parent[3][1].name].value,
+            EMPIRE867=CWLoc[title.parent[1][1].parent[1]
+                            [1].parent[1][1].name].value,
+            EMPIRE1066=CWLoc[title.parent[2][1].parent[2]
+                             [1].parent[2][1].name].value,
+            EMPIRE1178=CWLoc[title.parent[3][1].parent[3]
+                             [1].parent[3][1].name].value,
             # --
             BARONIES=len(title.children[1]),
             DEVELOPMENT867=title.development[1][1],
@@ -603,7 +612,8 @@ def list_of_duchies():
         for county_title in title.children[1]:  # 867
             for barony_title in county_title.children[1]:
                 barony_specials = [value[1] for value in barony_title.special]
-                barony_specials += [value[1] for value in barony_title.special_slot]
+                barony_specials += [value[1]
+                                    for value in barony_title.special_slot]
                 barony_specials = [
                     building.building_line[0]
                     for building in barony_specials
@@ -633,7 +643,8 @@ def list_of_duchies():
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
             COUNTIES=len(title.children[1]),
-            BARONIES=sum([len(child.children[1]) for child in title.children[1]]),
+            BARONIES=sum([len(child.children[1])
+                         for child in title.children[1]]),
             # --
             DEV_AVG867=int(sum(dev867) / len(dev867)),
             DEV_AVG1066=int(sum(dev1066) / len(dev1066)),
@@ -749,9 +760,12 @@ def list_of_kingdoms():
             DUCHY1066=len(title.children[2]),
             DUCHY1178=len(title.children[3]),
             # --
-            COUNTY867=sum([len(duchy.children[1]) for duchy in title.children[1]]),
-            COUNTY1066=sum([len(duchy.children[2]) for duchy in title.children[2]]),
-            COUNTY1178=sum([len(duchy.children[3]) for duchy in title.children[3]]),
+            COUNTY867=sum([len(duchy.children[1])
+                          for duchy in title.children[1]]),
+            COUNTY1066=sum([len(duchy.children[2])
+                           for duchy in title.children[2]]),
+            COUNTY1178=sum([len(duchy.children[3])
+                           for duchy in title.children[3]]),
             # --
             # Special Req can not be calculated automatically yet, use prebuilt values
             SPECIAL_REQ=special_reqs,
