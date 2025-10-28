@@ -585,7 +585,7 @@ def list_of_counties():
 """
     total_counties = 0
 
-    def hegemony_name(county: Title, yearindex: int):
+    def hegemony_name(title: Title, yearindex: int):
         hegemony = title.parent[yearindex][1].parent[yearindex][1].parent[yearindex][1].parent[yearindex][1]
         if hegemony:
             return CWLoc[hegemony.name].value
@@ -695,7 +695,7 @@ def list_of_duchies():
 
     total_duchies = 0
 
-    def hegemony_name(county: Title, yearindex: int):
+    def hegemony_name(title: Title, yearindex: int):
         hegemony = title.parent[yearindex][1].parent[yearindex][1].parent[yearindex][1]
         if hegemony:
             return CWLoc[hegemony.name].value
@@ -781,6 +781,7 @@ def list_of_kingdoms():
     # https://ck3.paradoxwikis.com/List_of_kingdoms
     TABLE = """{{| class="wikitable sortable" style="text-align: left;"
 ! colspan="2" rowspan="2" | Kingdom
+! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! colspan="3" | [[List_of_empires|Empire]]
 ! colspan="3" | [[List_of_duchies|Duchies]]
 ! colspan="3" | [[List_of_counties|Counties]]
@@ -793,17 +794,27 @@ def list_of_kingdoms():
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
+! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 {ROWS}
 |}}"""
 
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
 |align="right"|{DUCHY867}||align="right"|{DUCHY1066}||align="right"|{DUCHY1178}
 |align="right"|{COUNTY867}||align="right"|{COUNTY1066}||align="right"|{COUNTY1178}
 |{SPECIAL_REQ}||{AI_REQ}
 |{ALTNAMES}||{CAPITAL}||{ID}
 """
+
+    def hegemony_name(title: Title, yearindex: int):
+        empire = title.parent[yearindex][1]
+        if not empire:
+            return ""
+        hegemony = empire.parent[yearindex][1]
+        if hegemony:
+            return CWLoc[hegemony.name].value
+        return ""
 
     def get_name(title: Title | None) -> str:
         if title is None:
@@ -812,11 +823,20 @@ def list_of_kingdoms():
 
     REQS = {
         "k_jerusalem": "Christian Religion",
-        "k_rum": "{{{{icon|decision}}}}[[Decisions#Form the Sultanate of Rum|Form the Sultanate of Rum]]",
-        "k_aragon": "{{{{icon|decision}}}}[[Decisions#Found the Kingdom of Aragon|Found the Kingdom of Aragon]]",
+        "k_rum": r"{{icon|decision}}[[Ruler decisions#Form the Sultanate of Rum|Form the Sultanate of Rum]]",
+        "k_aragon": r"{{icon|decision}}[[Ruler decisions#Found the Kingdom of Aragon|Found the Kingdom of Aragon]]",
         "k_leon": "Created by 'Splitting the Crown' event in 867",
         "k_asturias": "Destroyed by 'Splitting the Crown' event in 867",
-        "k_portugal": "{{{{icon|decision}}}}[[Decisions#Found Portugal|Found Portugal]]",
+        "k_portugal": r"{{icon|decision}}[[Ruler decisions#Found Portugal|Found Portugal]]",
+        "k_aynumosir": "Japanese Government restrictions",
+        "k_hitakami": "Japanese Government restrictions",
+        "k_yamato": "Japanese Government restrictions",
+        "k_azuma": "Japanese Government restrictions",
+        "k_tsukushi": "Japanese Government restrictions",
+        "k_goguryeo": "Cannot be created by Goryeo after it is formed",
+        "k_silla": "Cannot be created by Goryeo after it is formed",
+        "k_baekje": "Cannot be created by Goryeo after it is formed",
+        "k_ruucuu": ""
     }
 
     AI_REQS = {
@@ -867,6 +887,10 @@ def list_of_kingdoms():
             GREEN=color[1],
             BLUE=color[2],
             # --
+            HEGEMONY867=hegemony_name(title, 1),
+            HEGEMONY1066=hegemony_name(title, 2),
+            HEGEMONY1178=hegemony_name(title, 3),
+            # --
             EMPIRE867=get_name(title.parent[1][1]),
             EMPIRE1066=get_name(title.parent[2][1]),
             EMPIRE1178=get_name(title.parent[3][1]),
@@ -906,6 +930,6 @@ def list_of_kingdoms():
 
 list_of_counties()
 list_of_duchies()
-# list_of_kingdoms()
+list_of_kingdoms()
 
 pass
