@@ -560,7 +560,6 @@ def list_of_counties():
 ! rowspan="2" | [[List_of_duchies|Duchy]]
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
-! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! rowspan="2" | [[Barony|Baronies]]
 ! colspan="3" | [[Development]]
 ! rowspan="2" | [[Special buildings|Special Buildings]]
@@ -574,12 +573,11 @@ def list_of_counties():
 ! 867 !! 1066 !! 1178
 ! 867 !! 1066 !! 1178
 ! 867 !! 1066 !! 1178
-! 867 !! 1066 !! 1178
 {ROWS}
 |}}"""
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{DUCHY}||{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}||{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}
+|{DUCHY}||{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
 |align="right"|{BARONIES}||align="right"|{DEVELOPMENT867}||align="right"|{DEVELOPMENT1066}||align="right"|{DEVELOPMENT1178}
 |{SPECIAL}||{CULTURE867}||{CULTURE1066}||{CULTURE1178}||{RELIGION867}||{RELIGION1066}||{RELIGION1178}||{ALTNAMES}||{ID}
 """
@@ -634,9 +632,9 @@ def list_of_counties():
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3]
                              [1].parent[3][1].name].value,
             # --
-            HEGEMONY867=hegemony_name(title, 1),
-            HEGEMONY1066=hegemony_name(title, 2),
-            HEGEMONY1178=hegemony_name(title, 3),
+            # HEGEMONY867=hegemony_name(title, 1),
+            # HEGEMONY1066=hegemony_name(title, 2),
+            # HEGEMONY1178=hegemony_name(title, 3),
             # --
             BARONIES=len(title.children[1]),
             DEVELOPMENT867=title.development[1][1],
@@ -669,7 +667,6 @@ def list_of_duchies():
 ! colspan="2" rowspan="2" | Duchy
 ! colspan="3" | [[List_of_kingdoms|Kingdom]]
 ! colspan="3" | [[List_of_empires|Empire]]
-! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! rowspan="2" | [[List_of_counties|Counties]]
 ! rowspan="2" | [[Barony|Baronies]]
 ! colspan="3" | [[County#Development|Average Development]]
@@ -681,13 +678,12 @@ def list_of_duchies():
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
-! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 {ROWS}
 |}}"""
 
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}||{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}
+|{KINGDOM867}||{KINGDOM1066}||{KINGDOM1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
 |align="right"|{COUNTIES}||align="right"|{BARONIES}
 |align="right"|{DEV_AVG867}||align="right"|{DEV_AVG1066}||align="right"|{DEV_AVG1178}
 |{SPECIAL}||{ALTNAMES}||{CAPITAL}||{ID}
@@ -752,9 +748,9 @@ def list_of_duchies():
             EMPIRE1066=CWLoc[title.parent[2][1].parent[2][1].name].value,
             EMPIRE1178=CWLoc[title.parent[3][1].parent[3][1].name].value,
             # --
-            HEGEMONY867=hegemony_name(title, 1),
-            HEGEMONY1066=hegemony_name(title, 2),
-            HEGEMONY1178=hegemony_name(title, 3),
+            # HEGEMONY867=hegemony_name(title, 1),
+            # HEGEMONY1066=hegemony_name(title, 2),
+            # HEGEMONY1178=hegemony_name(title, 3),
             # --
             COUNTIES=len(title.children[1]),
             BARONIES=sum([len(child.children[1])
@@ -781,7 +777,6 @@ def list_of_kingdoms():
     # https://ck3.paradoxwikis.com/List_of_kingdoms
     TABLE = """{{| class="wikitable sortable" style="text-align: left;"
 ! colspan="2" rowspan="2" | Kingdom
-! colspan="3" | [[List_of_hegemonies|Hegemony]]
 ! colspan="3" | [[List_of_empires|Empire]]
 ! colspan="3" | [[List_of_duchies|Duchies]]
 ! colspan="3" | [[List_of_counties|Counties]]
@@ -794,13 +789,12 @@ def list_of_kingdoms():
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 ! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
-! rowspan="2" | 867 !! rowspan="2" | 1066 !! rowspan="2" | 1178
 {ROWS}
 |}}"""
 
     TABLEROW = """|- id="{NAME}"
 {{{{title with color|{NAME}|{RED}|{GREEN}|{BLUE}}}}}
-|{HEGEMONY867}||{HEGEMONY1066}||{HEGEMONY1178}||{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
+|{EMPIRE867}||{EMPIRE1066}||{EMPIRE1178}
 |align="right"|{DUCHY867}||align="right"|{DUCHY1066}||align="right"|{DUCHY1178}
 |align="right"|{COUNTY867}||align="right"|{COUNTY1066}||align="right"|{COUNTY1178}
 |{SPECIAL_REQ}||{AI_REQ}
@@ -886,10 +880,6 @@ def list_of_kingdoms():
             RED=color[0],
             GREEN=color[1],
             BLUE=color[2],
-            # --
-            HEGEMONY867=hegemony_name(title, 1),
-            HEGEMONY1066=hegemony_name(title, 2),
-            HEGEMONY1178=hegemony_name(title, 3),
             # --
             EMPIRE867=get_name(title.parent[1][1]),
             EMPIRE1066=get_name(title.parent[2][1]),
