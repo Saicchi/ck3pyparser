@@ -1117,12 +1117,6 @@ class CWHistoryProvince(CWItem):
         cwitem.raw = cwobject
         cwitem.name = cwobject.token.token
 
-        if cwitem.name in cls.ALL:
-            # duplicates can exist ( province 4345 )
-            # first one defined wins
-            return
-        cls.ALL[cwitem.name] = cwitem
-
         cwitem.barony = CWTitle.PROVINCES[cwobject.token.token]
 
         newdate = CWHistoryDate.handle_object(cwobject, Token("1.1.1"))
@@ -1137,6 +1131,13 @@ class CWHistoryProvince(CWItem):
             newdate = CWHistoryDate.handle_object(value)
             newdate.index = cwitem.index
             cwitem.dates.append(newdate)
+
+        if cwitem.name in cls.ALL:
+            # duplicates can exist ( province 4345 )
+            # add to existing one
+            cls.ALL[cwitem.name].dates += cwitem.dates
+            return
+        cls.ALL[cwitem.name] = cwitem
 
 
 class CWHistoryTitle(CWItem):
